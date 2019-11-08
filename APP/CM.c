@@ -1573,7 +1573,7 @@ void TaskModemProcess(void *p)
                 }
 
                 uDataLen = g_uDataBuffer[1] + 2;
-                CmStoreRecLink((uint8_t*)g_uDataBuffer,uDataLen);
+                CmStoreRecLink((uint8_t*)g_uDataBuffer,uDataLen);   //接收数据存放至链表
 
                 for(i=0; i<uDataLen; i++)
                 {

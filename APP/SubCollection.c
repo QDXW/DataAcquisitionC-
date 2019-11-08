@@ -48,6 +48,7 @@
 #define NO_DATA -2 //遍历历史数据查找不到需要补采时标前后2.5分钟范围内的数据
 #define FEED_WATCH_DOG()   FEED_DOG()    // 喂狗
 
+extern uint8_t g_TimeMarker[7];
 /******************************************************************************
 * 名    称：tMarkCheck()
 * 功    能：检测读取到的历史数据时标是否在需要补采的时标范围内
@@ -92,6 +93,7 @@ int32_t tMarkCheck(uint8_t menAddr[],time_t targetTime )
         g_TimeMarker[5]=menAddr[3]-1;   //上报平台时，月份从0开始计算
         g_TimeMarker[6]=menAddr[2];
         */
+//        DEBUGOUT("\\\\\\\\\\\\\\\\\\\\\\\ tMarkCheck Success \\\\\\\\\\\\\\\\\n");
     	return OK;
     }
     return NO_DATA;
@@ -129,16 +131,26 @@ int CheckTarget(uint32_t uReadFlash,time_t targetTime,uint32_t uFrameLenth,uint3
     int32_t iRecord = NO_DATA;
     uint8_t uSubCheckAddr[SUBCHECKSIZE] = {0};
     uint32_t i=0;
-    DataFlash_Read(uReadFlash,uSubCheckAddr,SUBCHECKSIZE); //从历史数据存储的起始位置拷贝头标与时标（2+6）到缓存中
+    DataFlash_Read(uReadFlash,uSubCheckAddr,SUBCHECKSIZE); //从历史数据存储的起始位置拷贝头标与时标（2+6）到缓存中    
+//    DEBUGOUT("@@@@@@@@@@@@@@@@ uSubCheckAddr @@@@@@@@@@@@@@@@@@*********First before markCheck****\n");
+/*    for (uint8_t j = 0; j < SUBCHECKSIZE; ++j)
+    {
+        DEBUGOUT("%x ", uSubCheckAddr[j]);
+    }
+    DEBUGOUT("\n@@@@@@@@@@@@@@@@ uSubCheckAddr @@@@@@@@@@@@@@@@@@*********First before markCheck****\n");
+    */
     //Delay(1);
     for(; i<uTimes && uReadFlash<=(DATAFLASH_RECORD_END-uFrameLenth);i++ )
     {
         if(OK == hMarkCheck(uSubCheckAddr))
         {
+ //           DEBUGOUT("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ hMarkCheck Success \\\\\\\\\\\\\\\\\\\\\\\\\n");
             if(OK == tMarkCheck(uSubCheckAddr ,targetTime))
             {
+                
                 iRecord = i;
                 *uNeedReadFlash = uReadFlash;
+  //              DEBUGOUT("@@@@@@@@@@@@@@@@@@@@@@@@@@ tMarkCheck: %d @@@@@@@@@@@@@@@@@@@@@@@@@\n", iRecord);
                 return iRecord;
             }
         }
@@ -148,6 +160,13 @@ int CheckTarget(uint32_t uReadFlash,time_t targetTime,uint32_t uFrameLenth,uint3
             FEED_WATCH_DOG();  // 喂狗
         }
         DataFlash_Read(uReadFlash,uSubCheckAddr,SUBCHECKSIZE); //从历史数据存储的起始位置拷贝头标与时标（2+6）到缓存中
+/*        DEBUGOUT("@@@@@@@@@@@@@@@@ uSubCheckAddr @@@@@@@@@@@@@@@@@@\n");
+        for (uint8_t j = 0; j < SUBCHECKSIZE; ++j)
+        {
+            DEBUGOUT("%x ", uSubCheckAddr[j]);
+        }
+        DEBUGOUT("\n@@@@@@@@@@@@@@@@ uSubCheckAddr @@@@@@@@@@@@@@@@@@\n");
+        */
     }
     return iRecord;
 
@@ -192,30 +211,54 @@ int32_t CollectData(IEC104_MAIN_T *pA, uint32_t *uNeedReadFlash)
     dst.tm_year = 0;
     dst.tm_isdst = 0;   //不实行夏令时
     inteval = mktime(&dst);
-
     *************************************************************/
+    //禅道单890，补采第一帧时标错误
+/*    DEBUGOUT("******************************************************************\n");
+    DEBUGOUT("%x %x %x %x %x %x %x\n", recvpkt->recv.format.data[1],
+                                       recvpkt->recv.format.data[2],
+                                       recvpkt->recv.format.data[3],
+                                       recvpkt->recv.format.data[4],
+                                       recvpkt->recv.format.data[5],
+                                       recvpkt->recv.format.data[6],
+                                       recvpkt->recv.format.data[7]);
+    DEBUGOUT("******************************************************************\n");
+*/
 
     //需求文档中日期是7个字符，毫秒分时日月年
-    dst.tm_sec = (recvpkt->recv.format.data[1]+recvpkt->recv.format.data[2]*256)/1000;	//低端模式
-    dst.tm_min = recvpkt->recv.format.data[3];
-    dst.tm_hour = recvpkt->recv.format.data[4];
-    dst.tm_mday = recvpkt->recv.format.data[5]&0x1F;
-    dst.tm_wday = recvpkt->recv.format.data[5]&0xE0;
-    dst.tm_mon = recvpkt->recv.format.data[6];
-    dst.tm_year = recvpkt->recv.format.data[7]+100;//！！！特别注意：这里是从1900经过的年数，此处要与src计算差值可以忽略具体年份
+//    dst.tm_sec = (recvpkt->recv.format.data[1]+recvpkt->recv.format.data[2]*256)/1000;	//低端模式
+//    dst.tm_min = recvpkt->recv.format.data[3];
+//    dst.tm_hour = recvpkt->recv.format.data[4];
+//    dst.tm_mday = recvpkt->recv.format.data[5]&0x1F;
+//    dst.tm_wday = recvpkt->recv.format.data[5]&0xE0;
+//    dst.tm_mon = recvpkt->recv.format.data[6];
+//    dst.tm_year = recvpkt->recv.format.data[7]+100;//！！！特别注意：这里是从1900经过的年数，此处要与src计算差值可以忽略具体年份
+//    dst.tm_isdst = 0;   //不实行夏令时
+
+    dst.tm_sec = (g_TimeMarker[0]+g_TimeMarker[1]*256)/1000;	//低端模式
+    dst.tm_min  = g_TimeMarker[2];
+    dst.tm_hour = g_TimeMarker[3];
+    dst.tm_mday = g_TimeMarker[4]&0x1F;
+    dst.tm_wday = g_TimeMarker[4]&0xE0;
+    dst.tm_mon  = g_TimeMarker[5];
+    dst.tm_year = g_TimeMarker[6]+100;//！！！特别注意：这里是从1900经过的年数，此处要与src计算差值可以忽略具体年份
     dst.tm_isdst = 0;   //不实行夏令时
     targetTime = mktime(&dst);
-    struct tm*tm_tar = localtime(&targetTime) ;
-    DEBUGOUT("start-0: %d-%d-%d %d:%d:%d\n",
-        tm_tar->tm_year+1900, tm_tar->tm_mon+1, tm_tar->tm_mday, tm_tar->tm_hour, tm_tar->tm_min, tm_tar->tm_sec);
-
+    struct tm*tm_tar = localtime(&targetTime);
+    
+    DEBUGOUT("start-0: %d-%d-%d %d:%d:%d\n",tm_tar->tm_year+1900, 
+                                            tm_tar->tm_mon+1,
+                                            tm_tar->tm_mday, 
+                                            tm_tar->tm_hour,
+                                            tm_tar->tm_min, 
+                                            tm_tar->tm_sec);
 
     uFrameLenth = g_DeviceSouth.yx_sum + g_DeviceSouth.yc_sum*4+8;
     if(uFrameLenth == 8)
     {
         return iRecord;
     }
-    if(0 == sRecord.uExist)
+
+    if(0 == sRecord.uExist)//查找最后一条数据
     {
         uRes = EepReadData(EEP_LOGGER_104_RECORD_HEAD,(uint8_t *)&sRecord,sizeof(sRecord),&sRecord.CRC);// 数采读取
         if(0 == uRes)
@@ -239,7 +282,7 @@ int32_t CollectData(IEC104_MAIN_T *pA, uint32_t *uNeedReadFlash)
     }
 
     result = difftime(tCurrentTime,targetTime);
-    ret1 = (uint32_t)((result/(2*INTERVAL_TIME_RANG)))*uFrameLenth;
+    ret1 = (uint32_t)((result/(2*INTERVAL_TIME_RANG)))*uFrameLenth; //历史数据的相应帧数计算
     if(ret1<=sRecord.uFlashAddr)
     {
 
@@ -252,6 +295,7 @@ int32_t CollectData(IEC104_MAIN_T *pA, uint32_t *uNeedReadFlash)
     }
     if(uFirstReadFlash>=DATAFLASH_RECORD_HEAD && ret1<=sRecord.uFlashAddr)
     {
+//        DEBUGOUT("&&&&&&&&&&&&&&&&&&&&&&&&&&&uFirstReadFlash>=DATAFLASH_RECORD_HEAD && ret1<=sRecord.uFlashAddr&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
         uTimes = (uint32_t)result/(2*INTERVAL_TIME_RANG);
         iRecord = CheckTarget(uFirstReadFlash,targetTime,uFrameLenth,uTimes,uNeedReadFlash);
     }else

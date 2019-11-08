@@ -272,6 +272,7 @@ extern uint8_t ReportCtrlRead(uint8_t uCtrl);
 #define REPORT_HW_SOFT         0X04
 //extern uint8_t  g_uNextFrame; // 全局变量，在IEC104.c中标记。
 //extern uint8_t uPdateMark;     //升级标志，用于复位后判断是否继续
+
 //======================================================================
 
 #endif

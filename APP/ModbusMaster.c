@@ -276,11 +276,13 @@ int16_t ComMasterWrite(MODBUS_MASTER_T *pMaster,uint8_t uAddr,uint8_t uCmd,uint1
             else
             {
                 pMaster->sSuccessTime = OSTimeGet();
-                //释放信号量
+                //释放信号量   start-0
                 OSMutexPost(pMaster->pComLock);
                 return -MASTER_lOST;
             }
         }
+
+        msleep(200);
         iRecCount = UartRead(pMaster->iComFd, uDataBuffer, 8, 3);//iRecCount = read(pMaster->iComFd,uReadBuffer,300);
         if(0x02&SouthSwich)
 	    {
@@ -732,8 +734,9 @@ int16_t ComMasterRead(MODBUS_MASTER_T *pMaster,uint8_t uAddr,uint8_t uCmd,uint16
 				continue;
 			}
 
-            if((pMaster->uPreFun == 0x03)?(uSendCount < 99):(uSendCount < pMaster->uRecLostMax))  // 重发次数小于最大次数，单帧超时未回复重发
-//            if(uSendCount < pMaster->uRecLostMax)  			// 重发次数小于最大次数，单帧超时未回复重发
+            //if((pMaster->uPreFun == 0x03)?(uSendCount < 99):(uSendCount < pMaster->uRecLostMax))  
+            // 重发次数小于最大次数，单帧超时未回复重发
+            if(uSendCount < pMaster->uRecLostMax)  			// 重发次数小于最大次数，单帧超时未回复重发
             {
                 uFrameSendTime = sNowTime;
                 uSendCount++;

@@ -55,7 +55,7 @@ uint16_t      g_IecSendSeq=0;         // 发送序列
 uint8_t 	  Data_resend_count = 0;
 //========================================================================
 static uint8_t g_uReportCtrl=0;                    // 发送控制标记
-static uint8_t g_TimeMarker[7] = {0};              // 补采数据需要上报的时标
+uint8_t g_TimeMarker[7] = {0};              // 补采数据需要上报的时标
 static uint8_t g_uSubData[YCBUFFSIZE];             // 用于补采
 
 static LOGGER_MODBUS_REG_T *pRegPointTemp=NULL;    // 临时导点表用的点表指针
@@ -657,7 +657,7 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 		IecCreateFrameI(P_INPUT_TABLE,pA->recv.format.limit,R_INPUT_GLO_ACK,(pA->recv.format.len-13),&pA->send);
 		//--------------------------------------------------------------------------------------------------
 		//iec_run.running = Iec104_status_process(iec_run.running,P_INPUT_TABLE,R_INPUT_GLO_INFO);//RUNNING_INPUT_GLO;
-		g_LoggerRun.run_status = RUNNING_WORK_READ;
+		g_LoggerRun.run_status = RUNNING_INPUT_GOLB;
     }
     else if(R_INPUT_TYPE_INFO==pA->recv.format.reasonL)// 传输原因-导入设备类型信息0x89
     {
@@ -672,7 +672,7 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 
 			if(NULL==pRegPointTemp)
 			{
-				DEBUGOUT("要点表临时空间失败\n");// 申请空间失败
+//				DEBUGOUT("要点表临时空间失败\n");// 申请空间失败
 				return;
 			}
 		}
@@ -804,7 +804,7 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
         IecCreateFrameI(P_INPUT_TABLE,pA->recv.format.limit,R_INPUT_DEV_ACK,(pA->recv.format.len-13),&pA->send);
         //--------------------------------------------------------------------------------------------------
         //iec_run.running = Iec104_status_process(iec_run.running,P_INPUT_TABLE,R_INPUT_DEV_INFO);
-        g_LoggerRun.run_status = RUNNING_WORK_READ;
+        g_LoggerRun.run_status = RUNNING_INPUT_104;
     }
 }
 /******************************************************************************
@@ -856,9 +856,8 @@ void Iec104TableState(IEC104_MAIN_T *pA)
 
             s_sPointRecord.uRelPoint        = 0x00;   // 点表相对点表号
             s_sPointRecord.uLastTableNum    = 0x00;   // 记录本次点表号
-            s_sPointRecord.uLastPointCount  = 0x00;   // 已经记录的信息点数清零
+            s_sPointRecord.uLastPointCount  = 0x00;   // 已经记录的信息点数清零  Iec104Init
         }
-
 
         pRegPointTemp = WMemFree(pRegPointTemp); // 释放空间
         RecordInit(1);   // 历史数据存储重置
@@ -869,7 +868,6 @@ void Iec104TableState(IEC104_MAIN_T *pA)
         // 存入新数据
         for(i=0,addr=DATAFLASH_POINT_HEAD; i<MAX_device; i++)//&&i<g_DeviceSouth.device_sum
         {
-
             if(0!=g_DeviceSouth.protocol[i].mess_point_sum)
             {
                 space = sizeof(LOGGER_MODBUS_REG_T)*g_DeviceSouth.protocol[i].mess_point_sum;
@@ -2601,7 +2599,7 @@ void Iec104TimeCollectPre(IEC104_MAIN_T *pA)
         // 测试，字节结束总召
         //if(SUBCOLLECT_NULL == iec_subcollect_run.subcollect)
         {
-            //将收到的时标保存下来
+            //将收到的时标保存下来，带时标总召报文处理
             g_TimeMarker[0] = pA->recv.format.data[1];
             g_TimeMarker[1] = pA->recv.format.data[2];
             g_TimeMarker[2] = pA->recv.format.data[3];
@@ -2732,7 +2730,7 @@ void Iec104SD(IEC104_MAIN_T *pA)
 		ctemp.u=ctemp.f;
 		IEC104_DATA_SD[0] = SdSum;  // 遥调点数
 		IEC104_DATA_SD[1] = temp_104.u;  // 遥调地址
-		IEC104_DATA_SD[2] = ctemp.u;  // 遥调点值
+		IEC104_DATA_SD[2] = ctemp.u;  	// 遥调点值
 
 		for(uint8_t i=1;i< SdSum;i++)
 		{
@@ -3034,7 +3032,7 @@ void TaskIec104Process(void *p)
 
         uDataLen = CmRecLinkLen();
 
-        if(0==uDataLen)
+        if(0==uDataLen)  //无数据就退出
         {
             msleep(20);
             continue;
@@ -3042,9 +3040,9 @@ void TaskIec104Process(void *p)
 
         memset(g_sIEC.recv.buff,0,sizeof(g_sIEC.recv.buff));
 
-        uDataLen = CmReadRecLink(g_sIEC.recv.buff);
+        uDataLen = CmReadRecLink(g_sIEC.recv.buff);    //读数据
 
-        if(IEC104_HEAD == g_sIEC.recv.format.start)
+        if(IEC104_HEAD == g_sIEC.recv.format.start)     //包头判断以及帧分类处理
         {
             if(uDataLen != (g_sIEC.recv.format.len+2))
             {
@@ -3288,7 +3286,21 @@ void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
         {
             temp = qty*5;
 
-            //if(0xFFFFFFFF!=IEC104_DATA_YC[uIecCount])
+
+//            DEBUGOUT("*************************** 总召置位判断前 **********************************\n");
+            //***********************************极大值置位全F值************            
+            if(((0x4F800000==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT32)) ||
+            ((0x477FFF00==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT16)))
+            {
+
+  //          DEBUGOUT("**************************** 总召置位判断后 **************************************\n");
+                pA->send.format.data[temp]   = 0xFF;
+                pA->send.format.data[temp+1] = 0xFF;
+                pA->send.format.data[temp+2] = 0xFF;
+                pA->send.format.data[temp+3] = 0xFF;
+                
+            }
+            else
             {
                 yctemp.u = IEC104_DATA_YC[uIecCount];
                 pA->send.format.data[temp]   = yctemp.c[0];
@@ -3296,13 +3308,6 @@ void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
                 pA->send.format.data[temp+2] = yctemp.c[2];
                 pA->send.format.data[temp+3] = yctemp.c[3];
             }
-            /*else
-            {
-                pA->send.format.data[temp]   = 0xFF;
-                pA->send.format.data[temp+1] = 0xFF;
-                pA->send.format.data[temp+2] = 0xFF;
-                pA->send.format.data[temp+3] = 0xFF;
-            }*/
 
             pA->send.format.data[temp+4] = 0x00; // 品质描述
 
@@ -3397,7 +3402,7 @@ void IecSubSCollect(IEC104_MAIN_T *pA,IEC_RUNNING_T *subcall)
 
     uint8_t temp,tmp;
     uint8_t qty=0;			                    // 一帧IEC I帧包含补采点数计数
-    uint8_t uRest;                              // 每台设备剩余的待发送信息点数
+    uint16_t uRest;                              // 每台设备剩余的待发送信息点数，类型改为uint16_t from B31028&B31029, 原uint8_t太小，信息点数溢出
     uint8_t uRelTable;		                    // 相对点表号
     uint16_t iec_count; 	                    // 信息点计数
     uint16_t uCollectSum;			            // 每台设备的信息点总数
@@ -3488,7 +3493,7 @@ void IecSubSCollect(IEC104_MAIN_T *pA,IEC_RUNNING_T *subcall)
                 }
             }
 
-            if(temp>=g_DeviceSouth.device_sum || temp>=MAX_device)
+            if(temp>=g_DeviceSouth.device_sum || temp>=MAX_device)//查找设备序号大于最大设备数，遥信查找完毕
             {
                 subcall->uRelAddr = 0;
                 subcall->subcollect = SUBCOLLECT_YC;  // 下次发送遥测数据
@@ -3551,7 +3556,7 @@ void IecSubSCollect(IEC104_MAIN_T *pA,IEC_RUNNING_T *subcall)
             pA->send.format.data[temp+10] = g_TimeMarker[5];
             pA->send.format.data[temp+11] = g_TimeMarker[6];
 
-            sAllSum ++;
+            sAllSum++;
             uPerDeviceSum++;
             qty++;
         }
@@ -3614,6 +3619,7 @@ void IecSubSCollect(IEC104_MAIN_T *pA,IEC_RUNNING_T *subcall)
 
         uCollectSum =g_sIecPointCount[uRelTable].uYcSum;
         uRest = g_sIecPointCount[uRelTable].uYcSum - uPerDeviceSum;
+//        DEBUGOUT("######################## YcSum : %d ##########################\n", g_sIecPointCount[uRelTable].uYcSum);
         if(uRest<=46)
         {
             uReadFlashAddr = uNeedReadFlash + 8 + g_DeviceSouth.yx_sum + sAllSum*4;
@@ -3621,6 +3627,13 @@ void IecSubSCollect(IEC104_MAIN_T *pA,IEC_RUNNING_T *subcall)
             //OSMutexPend(pRecordLock,0,&err);//请求信号量
 
             DataFlash_Read(uReadFlashAddr,&g_uSubData[8],uRest*4);
+
+//            DEBUGOUT("*************************************** uSubData **************************\n");
+//            for (uint16_t j = 8; j < 8+uRest*4; ++j)
+//            {
+//                DEBUGOUT("%x ", g_uSubData[j]);
+//            }
+//            DEBUGOUT("*************************************** uSubData **************************\n");
 
             //OSMutexPost(pRecordLock);   //释放信号量
         }
@@ -3633,6 +3646,12 @@ void IecSubSCollect(IEC104_MAIN_T *pA,IEC_RUNNING_T *subcall)
 
             DataFlash_Read(uReadFlashAddr,&g_uSubData[8],46*4);
 
+//            DEBUGOUT("*************************************** out of 46 **************************\n");
+//            for (uint16_t j = 8; j < 46*4; ++j)
+//            {
+//                DEBUGOUT("%x ", g_uSubData[j]);
+//            }
+//            DEBUGOUT("\n*************************************** out of 46 **************************\n");
             //OSMutexPost(pRecordLock);   //释放信号量
         }
 
@@ -3662,7 +3681,7 @@ void IecSubSCollect(IEC104_MAIN_T *pA,IEC_RUNNING_T *subcall)
             pA->send.format.data[temp+10] = g_TimeMarker[5];
             pA->send.format.data[temp+11] = g_TimeMarker[6];
 
-            sAllSum ++;
+            sAllSum++;
             uPerDeviceSum++;
             qty++;
         }

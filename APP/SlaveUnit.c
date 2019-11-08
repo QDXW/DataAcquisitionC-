@@ -898,6 +898,7 @@ void YxReport(uint16_t uIecAddr,uint8_t uIecVal,uint8_t uStep)
 * 名    称：YcReport()
 * 功    能：突发遥测数据。
 * 入口参数：
+            uType     遥测点数据类型
             uIecAddr  IEC104相对地址
             fIecVal   IEC104值
             uStep    1：暂时存数据，直到存满发送；2：只立即发送数据；3：存数据且立即发送数据
@@ -905,7 +906,7 @@ void YxReport(uint16_t uIecAddr,uint8_t uIecVal,uint8_t uStep)
 * 出口参数：无
 * 范    例:
 ******************************************************************************/
-void YcReport(uint16_t uIecAddr,uint32_t fIecVal,uint8_t uStep)
+void YcReport(uint8_t uType,uint16_t uIecAddr,uint32_t fIecVal,uint8_t uStep)
 {
     Uint_Char_Convert  uCTemp;
     U32_F_Char_Convert yc_temp;
@@ -926,10 +927,27 @@ void YcReport(uint16_t uIecAddr,uint32_t fIecVal,uint8_t uStep)
             g_sBurst.yc_data[g_sBurst.yc_count*8+2] = 0x00;
             // 信息点值
             yc_temp.u = fIecVal;
-            g_sBurst.yc_data[g_sBurst.yc_count*8+3] = yc_temp.c[0];
-            g_sBurst.yc_data[g_sBurst.yc_count*8+4] = yc_temp.c[1];
-            g_sBurst.yc_data[g_sBurst.yc_count*8+5] = yc_temp.c[2];
-            g_sBurst.yc_data[g_sBurst.yc_count*8+6] = yc_temp.c[3];
+
+
+             
+            //***********************************突发极大值置位全F值************            
+            if(((0x4F800000==yc_temp.u)&&(uType == T_UINT32)) ||
+                ((0x477FFF00==yc_temp.u)&&(uType == T_UINT16)))
+            {
+                g_sBurst.yc_data[g_sBurst.yc_count*8+3] = 0xFF;
+                g_sBurst.yc_data[g_sBurst.yc_count*8+4] = 0xFF;
+                g_sBurst.yc_data[g_sBurst.yc_count*8+5] = 0xFF;
+                g_sBurst.yc_data[g_sBurst.yc_count*8+6] = 0xFF;
+            }
+            else
+            {
+                g_sBurst.yc_data[g_sBurst.yc_count*8+3] = yc_temp.c[0];
+                g_sBurst.yc_data[g_sBurst.yc_count*8+4] = yc_temp.c[1];
+                g_sBurst.yc_data[g_sBurst.yc_count*8+5] = yc_temp.c[2];
+                g_sBurst.yc_data[g_sBurst.yc_count*8+6] = yc_temp.c[3];
+            }
+
+            
             g_sBurst.yc_data[g_sBurst.yc_count*8+7] = 0x00;  // 品质描述
             // 计数点增加
             g_sBurst.yc_count++;
@@ -1110,6 +1128,7 @@ static uint8_t SouthRecDeal(void)
                     break;
 
                 case T_FLOAT:  // 浮点类型
+                  //uYcU.f = uYcU.f;
                     break;
 
                 case T_EPOCHTIME:
@@ -1138,7 +1157,7 @@ static uint8_t SouthRecDeal(void)
                 {
                     IEC104_DATA_YC[uIecAddr] = uYcU.u;//yc_temp.f;//
 
-                    YcReport(uIecAddr,uYcU.u,1); // 突发遥测数据
+                    YcReport(g_pRegPoint[uRelNum][point].reg_type.type.data,uIecAddr,uYcU.u,1); // 突发遥测数据
                 }
 
                 uIecAddr++;
@@ -1305,9 +1324,11 @@ int8_t SouthInquire(void)
                 //---------------判断是否有突发数据没有上报--------------------------------
                 if(NORTH_OK == g_LoggerRun.north_status)  // 连接服务器完成
                 {
+
+//                    DEBUGOUT("************************ yc_count: %d ********************************\n", g_sBurst.yc_count);
                     if(g_sBurst.yc_count)
                     {
-                        YcReport(0,0,2);// 发送可能暂存的遥测突发数据
+                        YcReport(0,0,0,2);// 发送可能暂存的遥测突发数据
                     }
                     if(g_sBurst.yx_count)
                     {
@@ -2196,23 +2217,25 @@ uint8_t SouthLogTransmission(uint16_t uFrameCount)
 		 
 		 if(uTemp.u == uFrameCount)           //发送与接收的包序号对比，正确则转发给平台
 		 { 
-			  DEBUGOUT("\nSend Package : %d   Rec Package:%d   ",uTemp.u ,uFrameCount);
-			  g_sIecSend.format.maddrL = uTmpData[3];  //包序号低位
-              g_sIecSend.format.maddrM = uTmpData[2];  //包序号高位
-              g_sIecSend.format.maddrH = 0x00;
+//			  DEBUGOUT("\nSend Package : %d   Rec Package:%d   ",uTemp.u ,uFrameCount);
+			 g_sIecSend.format.maddrL = (uFrameCount - 1)&0xFF;  //包序号低位
+             g_sIecSend.format.maddrM = (uFrameCount - 1)>>8;  //包序号高位
+//			 g_sIecSend.format.maddrL = uTmpData[3];  //包序号低位
+//             g_sIecSend.format.maddrM = uTmpData[2];  //包序号高位
+             g_sIecSend.format.maddrH = 0x00;
 
-			  uDataLen = uRecBuffer[6];   //获取日志帧长度
-			  DEBUGOUT("PackageDataLen: %d\n",uDataLen);
+			 uDataLen = uRecBuffer[6];   //获取日志帧长度
 			  
-              g_DT1000Updata.CRC = CalculateCRC(&uRecBuffer[7],uDataLen);
-			  g_sIecSend.format.data[uDataLen]   = g_DT1000Updata.CRC&0xFF;
-			  g_sIecSend.format.data[uDataLen+1] = g_DT1000Updata.CRC<<8;
-			  
-			  //DataFlash_Write(DATAFLASH_DT1000_LOG+uFrameSum*i,&uRecBuffer[7],uRecBuffer[6]);
-			  memcpy(g_sIecSend.format.data,&uRecBuffer[7],uDataLen);
-			  msleep(5);
+
+             g_DT1000Updata.CRC = CalculateCRC(&uRecBuffer[7],uDataLen);
+			 g_sIecSend.format.data[uDataLen]   = g_DT1000Updata.CRC&0xFF;
+			 g_sIecSend.format.data[uDataLen+1] = g_DT1000Updata.CRC<<8;
+			 DEBUGOUT("PackageDataLen: %d  g_DT1000Updata.CRC:%04X\n",uDataLen,g_DT1000Updata.CRC);
+			 //DataFlash_Write(DATAFLASH_DT1000_LOG+uFrameSum*i,&uRecBuffer[7],uRecBuffer[6]);
+			 memcpy(g_sIecSend.format.data,&uRecBuffer[7],uDataLen);
+			 msleep(5);
 			
-			  IecCreateFrameI(P_FILE_INOUT,0x01,R_DATA_TRANS,uDataLen+2,&g_sIecSend);    // 日志数据传输
+			 IecCreateFrameI(P_FILE_INOUT,0x01,R_DATA_TRANS,uDataLen+2,&g_sIecSend);    // 日志数据传输
 		 }
 	}
     else
@@ -2240,12 +2263,13 @@ void SouthLogEnd(void)
 	uTmpData[1] = g_DT1000Updata.uData;   //导出日期
 
     iResult = ComMasterRead(&g_sMaster,g_DT1000Updata.uDevAddr,DT1000LOG_END,0,0,uRecBuffer,uTmpData);
+    DEBUGOUT("iResult:%d\n",iResult);
 	if(iResult > 0)
 	{
 		uTmpCrc.c[1] = uRecBuffer[4];  //接收到表计文件CRC高位
 		uTmpCrc.c[0] = uRecBuffer[5];  //接收到表计文件CRC低位
 
-        //DEBUGOUT("g_DT1000Updata.CRC:%04X  uTmpCrc.u:%04X",g_DT1000Updata.CRC,uTmpCrc.u);
+        DEBUGOUT("g_DT1000Updata.CRC:%04X  uTmpCrc.u:%04X",g_DT1000Updata.CRC,uTmpCrc.u);
 		if(g_DT1000Updata.CRC == uTmpCrc.u)
 		{
              //传输总包数
@@ -2304,7 +2328,7 @@ void TaskSouthInquire(void *p)
     g_sMaster.iComFd = uart3;			// 串口文件号
     g_sMaster.uRecLostMax = 3;			// 最大丢帧次数，超过认为断连              ----->>>设定最大运行的丢帧次数，超过后认为断连
     g_sMaster.uRecCrcMax = 3;			// 最大CRC错误次数，超过认为断连           ----->>>设定最大运行的CRC校验次数，超过后认为断连
-    g_sMaster.uFailTimeOut = 500;		// 丢帧超时，超过后，再次发送数据          ----->>>设定丢帧后再次发送的间隔时间，以1ms为计时单位
+    g_sMaster.uFailTimeOut = 3000;		// 丢帧超时，超过后，再次发送数据          ----->>>设定丢帧后再次发送的间隔时间，以1ms为计时单位，，原500
     g_sMaster.u1BTimeOut = 6000;		//查询1B的时候接收延时时间
     g_sMaster.uSuccessDelay = 200;		// 一帧成功，延时，延时后查询下一帧        ----->>>设定一帧查询成功后查询下一帧的间隔时间
     g_sMaster.sSuccessTime = 0;			// %内部%一帧查询成功时的时间记录
@@ -2339,7 +2363,7 @@ void TaskSouthInquire(void *p)
 			DEBUGOUT("\r\nSouth Upgrade Start!!!\r\n");
 			SouthBroadcastUpdata();			//广播升级
 			FEED_DOG();     				// 喂狗
-		    sleep(30);
+		    sleep(50);                      //延时变更 from B31028&B31029，原参数为30
 			SouthUpdataSoftChange();		//升级后软件版本变更
 			
 			uSigleUpdate=1;
@@ -2348,12 +2372,12 @@ void TaskSouthInquire(void *p)
 		if((uSigleUpdate == 1) && (g_LoggerRun.uFileIO_status == 0x01))
 		{
 			SouthSingleUpdata();			//单播升级
-			sleep(30);
+			sleep(50);                      //延时变更 from B31028&B31029，原参数为30
 			g_LoggerRun.uFileIO_status = 0x00;
 			uSigleUpdate=0;
 		}
 
-		/******************************表计日志导出****************************/
+		/******************************表计日志导出********************************/
 		if(S_FILE_EXPORT == g_LoggerRun.uFileIO_status)
 		{
 			DEBUGOUT("\r\nSouth Log Output!!!\r\n");
@@ -2402,7 +2426,7 @@ void TaskSouthInquire(void *p)
 		   while (uFrameCount)
 		   {
 			   TimeCount=0;
-			   uLogOutState = SouthLogTransmission(g_DT1000Updata.frame_sum - uFrameCount); //日志传输
+			   uLogOutState = SouthLogTransmission(g_DT1000Updata.frame_sum - uFrameCount + 1); //日志传输
 
 			   if(uLogOutState > 0)
 			   {
@@ -2412,7 +2436,8 @@ void TaskSouthInquire(void *p)
 					   if((g_sIEC.recv.format.type == P_FILE_INOUT) && (g_sIEC.recv.format.reasonL == R_DATA_TRANS))  //接收确认帧类型及传输原因
 					   {
 						   uRecFrame = (g_sIEC.recv.format.data[0] | g_sIEC.recv.format.data[1]<<8);  //接收帧序号
-						   if(uRecFrame ==(g_DT1000Updata.frame_sum - uFrameCount))   //比对接收与发送序号是否相同
+						   DEBUGOUT("uRecFrame:%d  uFrameCount = %d\n",uRecFrame,(g_DT1000Updata.frame_sum - uFrameCount));
+						   if(uRecFrame == (g_DT1000Updata.frame_sum - uFrameCount))   //比对接收与发送序号是否相同
 						   {
 							   uFrameCount--;
 							   break;
@@ -2420,10 +2445,9 @@ void TaskSouthInquire(void *p)
  					   }
 					   
 			   		   TimeCount++;
-					   DEBUGOUT("TimeCount:%d\n",TimeCount);
+					   DEBUGOUT("TimeCount:%d  uFrameCount:%d\n",TimeCount,uFrameCount);
 					   if(TimeCount>=30)   //如果平台确认帧时间超过30s，退出日志传输
 					   {
-						   DEBUGOUT("平台回复超时退出!!!\n");
 						   TimeCount=0;
 						   uFrameCount=0;
 						   break;
@@ -2436,6 +2460,7 @@ void TaskSouthInquire(void *p)
 			   }    
 		   }
 		   
+		   DEBUGOUT("uFrameCount:%d  nDataLen:%d\n",uFrameCount,g_DT1000Updata.nDataLen);
            if((uFrameCount == 0) && (g_DT1000Updata.nDataLen != 0))
            {
 			   SouthLogEnd();	//表计日志导出结束
@@ -2445,7 +2470,7 @@ void TaskSouthInquire(void *p)
 		g_LoggerRun.uFileIO_status = 0;
 		
 		//--------------------------------------------------------------------------------
-        TimedReboot(120);    //定时重启
+        TimedReboot(120);    //定时重启  South Data Inquire
         AlarmCheckout();     //告警检出
         //--------------------------------------------------------------------------------
         //南向查询步骤
@@ -2515,14 +2540,12 @@ void TaskSouthInquire(void *p)
 					 sleep(1);				 
 					 if(NORTH_OK == g_LoggerRun.north_status)
 					 {
-						 //DEBUGOUT("告警查询\n");
 						 uRoundEnd = SouthInquireAlarm();  // 查询南向设备 
 					 }
                  }
                  else
                  {
                       uRoundStartTime = g_uTimeNow;   // 大循环起始时间
-                      DEBUGOUT("South Data Inquire\n");
                       uSouthStep = SOUTH_INQUIRE;
                  }
 		    }
@@ -2551,7 +2574,6 @@ void TaskSouthInquire(void *p)
 					}
 				}
 
-				DEBUGOUT("Discory Search\n");
 				uSouthStep = SOUTH_DISCORY;
 			}
 			
@@ -2819,7 +2841,7 @@ uint8_t SouthWriteSD(void)
     */
     if(NULL == IEC104_DATA_SD)
     {
-        DEBUGOUT("IEC104_DATA_SD为空\r\n");
+//        DEBUGOUT("IEC104_DATA_SD为空\r\n");
 		return 0;
     }
 
@@ -2858,13 +2880,14 @@ uint8_t SouthReadSD(void)
     uint16_t uSdCount;
     uint16_t uIecSd = 0;      	// IEC104表的设点地址点
     uint16_t uModbusAddr = 0; 	// 遥控点对应的MODBUS寄存器地址
-    uint16_t j;
+    uint16_t j,i;
     uint16_t PreModbus_Addr = 0;
 	
     uint8_t  uRelDevAddr;   	// 南向设备相对地址
     uint8_t  uRelNum;       	// 设备相对点表号
     uint8_t  uSdPoint;      	// 设备的第几个设点点
-    int8_t   iResult;
+    int8_t   iResult;
+
 	uint8_t  uStartPoit=0;
 	uint8_t  uIntervalPoint=0;
 	uint16_t  uPoint;
@@ -2881,14 +2904,15 @@ uint8_t SouthReadSD(void)
         return 0;
     }
 
-	uValue = IEC104_DATA_SD[0];
-	uIecSd = IEC104_DATA_SD[1] + 0x6201;
+	uValue = IEC104_DATA_SD[0];				//查询的遥调点总数
+	uIecSd = IEC104_DATA_SD[1] + 0x6201;	//查询的104地址
 
     if(uIecSd)
     {
         for(uRelDevAddr = 0; uRelDevAddr < MAX_device; uRelDevAddr++)	//遍历设备
         {
             uRelNum = g_DeviceSouth.device_inf[uRelDevAddr].rel_num;	//设备的相对点表号
+
             if((g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr <= uIecSd) 
 				&& (uIecSd < (g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr + (g_DeviceSouth.sd_sum/g_DeviceSouth.device_sum))))
             {
@@ -2925,7 +2949,7 @@ uint8_t SouthReadSD(void)
 									iResult = ComMasterRead(&g_sMaster,g_DeviceSouth.device_inf[uRelDevAddr].addr,03,uModbusAddr,(uRegSum - PreRegSum),uRecBuffer,NULL);
 									if(iResult < 0)
 									{
-										DEBUGOUT("1读取设点失败%d",g_DeviceSouth.device_inf[uRelDevAddr].addr);
+										DEBUGOUT("读取设点失败%d",g_DeviceSouth.device_inf[uRelDevAddr].addr);
 										IEC104_DATA_SD[uSdCount] = 0x00;
 									}
 									else
@@ -3143,7 +3167,7 @@ void TaskSouthWrite(void *p)
     while(1)
     {
         pMes = OSQPend(MesQ,0,&err);    //请求消息队列
-        DEBUGOUT("队列收:%d\n",*pMes);
+//        DEBUGOUT("队列收:%d\n",*pMes);
         if(SOUTH_CMD_YK == *pMes)     // 遥控
         {
             SouthWriteYk();
@@ -3189,8 +3213,11 @@ void AlarmAddDev(uint8_t uRelAddr,uint8_t uSum,uint16_t uModAddr,uint16_t uValue
         {
             break;
         }
-    }   
-    g_psSouthAlarmCopy[uRelAddr][temp].alarm_value =uValue;
+    }
+//    if (0xFF != g_psSouthAlarmCopy[uRelAddr][temp].alarm_value)
+//    {        
+        g_psSouthAlarmCopy[uRelAddr][temp].alarm_value =uValue;
+//    }
 }
 /******************************************************************************
 * 名    称：AlarmCheckout()

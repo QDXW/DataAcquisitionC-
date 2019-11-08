@@ -516,7 +516,7 @@ int16_t UartRead(uint8_t uUartId, void *pdata, uint16_t uLen, uint16_t uTimeout)
     {
         while(RxBufIsEmpty(USART_tab[uUartId]))
         {
-            OSTimeDly(2);  //原来为2
+            OSTimeDly(5);  //原来为2  OS_TICKS_PER_SEC
         }
     }
 

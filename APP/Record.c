@@ -322,11 +322,13 @@ uint8_t RecordHistory(const uint8_t *puYxData,const uint8_t *puYcData,const uint
 
         uWriteFlashAddrStart += 8;
         DataFlash_Write(uWriteFlashAddrStart,(uint8_t *)puYxData,uYxPoint);   // ´æ´¢Ò£ÐÅµã
+        OSTimeDly(5);//add
 
         FEED_WATCH_DOG();  // Î¹¹·
 
         uWriteFlashAddrStart += uYxPoint;
         DataFlash_Write(uWriteFlashAddrStart,(uint8_t *)puYcData,uYcPoint*4); // ´æ´¢Ò£²âµã
+        OSTimeDly(5);//add
     }
     
     sRecord.uExist = 1;

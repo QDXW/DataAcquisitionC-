@@ -33,8 +33,8 @@
 #define sleep(x)   OSTimeDly(OS_TICKS_PER_SEC*(x)+1)  // —” ±x√Î
 //====================================================================
 //====================================================================
-
-//static uint8_t g_TestData[4096];
+#define SIZE 128
+//static uint8_t g_TestData[SIZE];
 //static uint8_t g_TestOut[4096];
 
 static uint8_t g_uRecData[200];
@@ -356,7 +356,7 @@ void DealCmd(char *uRec,uint16_t uLen)
     uint16_t j;
     OS_STK_DATA sStk;
     
-    if(uLen < 5)
+    if(uLen < 4)
     {
         return ;
     }
@@ -982,7 +982,25 @@ void DealCmd(char *uRec,uint16_t uLen)
 			}
 			
 			break;*/
-		
+
+/*	case 30:
+	    {
+    	    DEBUGOUT("\n%%%%%%%%%%%%%%%%%%%%%%%%%%% DATAFLASH READ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+    	    uint16_t i = 0, j = 0;
+            
+            do
+            {
+                DataFlash_Read(0x11E932 + i, g_TestData, SIZE);
+                for (j = 0; j < SIZE; ++j)
+                {
+                    DEBUGOUT("%02x ", g_TestData[j]);
+                }
+                
+                i = i + SIZE;
+            }while (0x11F565 > (0x11E932 + i));
+            DEBUGOUT("\n");
+    	    break;
+	    }*/
     case 33:
         /*for(i=0; i<128; i++)
         {

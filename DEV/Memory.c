@@ -12,7 +12,7 @@
 #define MEM_ALLOC_TABLE_SIZE    (MAX_MEM_SIZE/MEM_BLOCK_SIZE)  // 内存表大小
 static char memory_map[MEM_ALLOC_TABLE_SIZE]={0};   //内存表
 static unsigned char memory_heap[MAX_MEM_SIZE];     //堆内存
-
+  
 /*
 * @fn malloc
 * @param unsigned int size 申请的内存大小
