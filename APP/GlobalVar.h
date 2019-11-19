@@ -368,6 +368,7 @@ extern DT1000UPDATA_MARK_T        g_DT1000Updata;
 //extern uint16_t g_PerSetTableResq;             //µã±í±àÂë
 extern uint8_t SouthSwich;
 extern uint8_t SdContinuousAddr;
+extern uint32_t g_South_Action_Newtime;
 
 //==============================================================================
 extern uint8_t GetVerType(void);

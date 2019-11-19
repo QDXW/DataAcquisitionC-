@@ -316,6 +316,14 @@ void TaskLedCtrl(void *p)
         LedCtrl();
         OSTimeDly(10);  // 100mS
         FEED_DOG();     // 喂看门狗
+
+
+        //规避方案，问题单940，南向在15mins内不查询则复位数采，状态为空数采除外
+        //printf("Oldtime = %d   g_South_Action_Newtime = %d",OSTimeGet(),g_South_Action_Newtime);
+		if(abs(OSTimeGet() - g_South_Action_Newtime) > 90000 && (RUNNING_EMPTY != g_LoggerRun.run_status) )
+		{
+			Reboot();
+		}
     }
 }
 

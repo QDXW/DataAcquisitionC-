@@ -141,7 +141,7 @@ int main(void)
 void DeviceInit(void)
 {
     __disable_irq();
-
+    g_South_Action_Newtime = OSTimeGet();
     // 偏移中断向量表，复制到RAM
     if(GetVerS2()&0x0001)  // 小版本号最低位，1：程序在A面；0：程序在B面
     {

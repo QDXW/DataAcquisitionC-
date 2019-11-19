@@ -135,6 +135,7 @@ void AlarmAddDev(uint8_t uRelAddr,uint8_t uSum,uint16_t uModAddr,uint16_t uValue
 uint8_t AlarmCheckout(void);
 uint8_t TimedReboot(uint8_t uRandom);
 uint8_t AlarmReport(uint8_t addr,uint8_t err_code,uint16_t reg_addr,uint8_t offset,uint8_t event,uint8_t imd);
+uint32_t g_South_Action_Newtime = 0;
 //===============================================================================
 //===============================================================================
 //===============================================================================
@@ -1235,8 +1236,9 @@ static uint8_t SouthRecDeal(void)
             uIecAddr++;
             break;
 
-//            case 0x06:  // 非法地址
-//            	break;
+//		case 0x06:  // 非法地址
+//
+//			break;
         }
         break;
     default:
@@ -1334,12 +1336,10 @@ int8_t SouthInquire(void)
                     {
                         YxReport(0,0,2);// 发送可能暂存的遥信突发数据
                     }
-
                 }
                 //-------------------------------------------------------------------
                 return SOUTH_OVER;
             }
-
         }
         //--------------------------------------------------------------------------
 
@@ -1402,7 +1402,6 @@ int8_t SouthInquire(void)
 
                     sSouth.uDdCount++;
                     sCom.uRegCount += g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_count;
-
 
                     sSouth.uPointHead = sSouth.uPointCount;
                     sSouth.uPointCount++;
@@ -1806,7 +1805,6 @@ int8_t SouthInquireAlarm(void)
             sAlarmSouth.uAddr = sCom.uDevAddr;      // 绝对地址
             sAlarmSouth.uFun = sCom.uFun;          // 发送的功能指令
             sAlarmSouth.uRegCount = sCom.uRegCount;     // 查询寄存器个数
-
             iReadResult = ComMasterRead(&g_sMaster,sCom.uDevAddr,sCom.uFun,sCom.uRegAddr,sCom.uRegCount,uRecBuffer,NULL);
             if(iReadResult>0 || -MODBUS_ILLEGAL_ADDR==iReadResult)  // 接收正常或0x83异常码为2
             {
@@ -2352,6 +2350,7 @@ void TaskSouthInquire(void *p)
         #if(1==USE_485_DEBUG)
         if(Rs485DebugRead())
         {
+        	DEBUGOUT("\r\nRs485DebugRead!!!\r\n");
             sleep(10);
             continue;
         }
@@ -2411,7 +2410,7 @@ void TaskSouthInquire(void *p)
 					 }
 					
 					 uFrameCount = g_DT1000Updata.frame_sum;
-					 DEBUGOUT("Frame Sum: %d",g_DT1000Updata.frame_sum);
+//					 DEBUGOUT("Frame Sum: %d",g_DT1000Updata.frame_sum);
 					 IecCreateFrameI(P_FILE_INOUT,0x01,R_TRANS_START_ACK,5,&g_sIecSend);
                      break;            
 				}
@@ -2436,7 +2435,7 @@ void TaskSouthInquire(void *p)
 					   if((g_sIEC.recv.format.type == P_FILE_INOUT) && (g_sIEC.recv.format.reasonL == R_DATA_TRANS))  //接收确认帧类型及传输原因
 					   {
 						   uRecFrame = (g_sIEC.recv.format.data[0] | g_sIEC.recv.format.data[1]<<8);  //接收帧序号
-						   DEBUGOUT("uRecFrame:%d  uFrameCount = %d\n",uRecFrame,(g_DT1000Updata.frame_sum - uFrameCount));
+//						   DEBUGOUT("uRecFrame:%d  uFrameCount = %d\n",uRecFrame,(g_DT1000Updata.frame_sum - uFrameCount));
 						   if(uRecFrame == (g_DT1000Updata.frame_sum - uFrameCount))   //比对接收与发送序号是否相同
 						   {
 							   uFrameCount--;
@@ -2445,7 +2444,7 @@ void TaskSouthInquire(void *p)
  					   }
 					   
 			   		   TimeCount++;
-					   DEBUGOUT("TimeCount:%d  uFrameCount:%d\n",TimeCount,uFrameCount);
+//					   DEBUGOUT("TimeCount:%d  uFrameCount:%d\n",TimeCount,uFrameCount);
 					   if(TimeCount>=30)   //如果平台确认帧时间超过30s，退出日志传输
 					   {
 						   TimeCount=0;
@@ -2460,7 +2459,7 @@ void TaskSouthInquire(void *p)
 			   }    
 		   }
 		   
-		   DEBUGOUT("uFrameCount:%d  nDataLen:%d\n",uFrameCount,g_DT1000Updata.nDataLen);
+//		   DEBUGOUT("uFrameCount:%d  nDataLen:%d\n",uFrameCount,g_DT1000Updata.nDataLen);
            if((uFrameCount == 0) && (g_DT1000Updata.nDataLen != 0))
            {
 			   SouthLogEnd();	//表计日志导出结束
@@ -2468,9 +2467,9 @@ void TaskSouthInquire(void *p)
 		   g_LoggerRun.uFileIO_status = 0;
 		}
 		g_LoggerRun.uFileIO_status = 0;
-		
+//		DEBUGOUT("Normal South Inquire!!!\n");
 		//--------------------------------------------------------------------------------
-        TimedReboot(120);    //定时重启  South Data Inquire
+        TimedReboot(120);    //定时重启
         AlarmCheckout();     //告警检出
         //--------------------------------------------------------------------------------
         //南向查询步骤
@@ -2479,7 +2478,7 @@ void TaskSouthInquire(void *p)
         {
         case SOUTH_INQUIRE:
             uRoundEnd = SouthInquire();  // 查询南向设备
-            
+//            DEBUGOUT("South Inquire !!!\r\n");
             if(SOUTH_WORK == uRoundEnd || SOUTH_WAIT == uRoundEnd)
             {
                 msleep(100);
@@ -2498,10 +2497,10 @@ void TaskSouthInquire(void *p)
             break;
 
         case SOUTH_DISCORY:
-			
-             uRoundEnd = SlaveDeviceAutoAllocation();   // 搜索表计设备并分配地址
-             //sleep(3);
 
+            uRoundEnd = SlaveDeviceAutoAllocation();   // 搜索表计设备并分配地址
+            //sleep(3);
+            DEBUGOUT("South Discory!!!\r\n");
             if(SEARCH_END == uRoundEnd) // 一个循搜索询结束，不需要导表
             {
 				uDiscoryStartTime = g_uTimeNow;
@@ -2525,6 +2524,7 @@ void TaskSouthInquire(void *p)
             }
             else
             {
+            	DEBUGOUT("South Discory uRoundEnd：%d!!!\r\n",uRoundEnd);
                 msleep(100);
             }
             break;
@@ -2532,12 +2532,13 @@ void TaskSouthInquire(void *p)
         case SOUTH_POLL:
             uRoundNowTime = g_uTimeNow;   // 大循环现在时间
 			uDiscoryNowTime = g_uTimeNow;  //自发现现在时间
-		  
+//			DEBUGOUT("South Poll!!!\r\n");
 			if(TimeGapJudge(uDiscoryStartTime,uDiscoryNowTime,DISCORY_ROUND_TIME))
 		    {
                  if(TimeGapJudge(uRoundStartTime,uRoundNowTime,SLAVE_ROUND_TIME))
                  {
-					 sleep(1);				 
+					 sleep(1);
+//					 DEBUGOUT("g_LoggerRun.north_status = %d  normal value is 5 !!!\r\n",g_LoggerRun.north_status);
 					 if(NORTH_OK == g_LoggerRun.north_status)
 					 {
 						 uRoundEnd = SouthInquireAlarm();  // 查询南向设备 
@@ -2547,6 +2548,7 @@ void TaskSouthInquire(void *p)
                  {
                       uRoundStartTime = g_uTimeNow;   // 大循环起始时间
                       uSouthStep = SOUTH_INQUIRE;
+                      DEBUGOUT("South Inquire !!!\r\n");
                  }
 		    }
 		    else
@@ -2559,6 +2561,16 @@ void TaskSouthInquire(void *p)
 					{
 						//OSMutexPend(pRecordLock,0,&err);//请求信号量
 						uSaveSouthLog(sDateTime,SOUTH_DATA_LOG,NULL,20,0);
+						//规避方案，问题单939，遥测数为0则重读eep，遥测空间为空则重启
+						if(!g_DeviceSouth.yc_sum)
+						{
+							EepReadData(EEP_LOGGER_DEVICE_INF_HEAD,(uint8_t *)&g_DeviceSouth,sizeof(g_DeviceSouth),&g_DeviceSouth.CRC);// 设备信息和点表信息读取
+						}
+						if(NULL == IEC104_DATA_YC)
+						{
+							Reboot();
+						}
+						DEBUGOUT("YCSum = %d   YXSum = %d !!!\r\n",g_DeviceSouth.yc_sum,g_DeviceSouth.yx_sum);
 						RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,g_DeviceSouth.yc_sum);// 保存数据
 						//OSMutexPost(pRecordLock);   //释放信号量
 					}
@@ -2579,11 +2591,13 @@ void TaskSouthInquire(void *p)
 			
             break;
         case SOUTH_TIME:
+//        	DEBUGOUT("South status:%d!!!\r\n",g_LoggerRun.run_status);
             if(RUNNING_WORK_READ == g_LoggerRun.run_status)
             {
                 uRoundNowTime = g_uTimeNow;   // 大循环现在时间
                 uDiscoryNowTime = g_uTimeNow;   // 大循环现在时间
                 uSouthStep = SOUTH_INQUIRE;
+                DEBUGOUT("South Inquire !!!\r\n");
             }
             else
             {
@@ -3214,10 +3228,10 @@ void AlarmAddDev(uint8_t uRelAddr,uint8_t uSum,uint16_t uModAddr,uint16_t uValue
             break;
         }
     }
-//    if (0xFF != g_psSouthAlarmCopy[uRelAddr][temp].alarm_value)
-//    {        
+    if (0xFFFF != uValue)//采集到全FF告警丢弃
+    {        
         g_psSouthAlarmCopy[uRelAddr][temp].alarm_value =uValue;
-//    }
+    }
 }
 /******************************************************************************
 * 名    称：AlarmCheckout()
@@ -3260,7 +3274,7 @@ uint8_t AlarmCheckout(void)
             s_uPowerOffAlarmTimeOut = g_uTimeNow;
             if((g_LoggerRun.err&err_power_off) != (g_LoggerAlarm.log_alarm&err_power_off))
             {
-                AlarmReport(0,     // 设备通讯地址
+                AlarmReport(0,     	// 设备通讯地址
                             0x03,   // 异常代码-数采设备异常
                             0x0001, // MODBUS寄存器地址
                             0,      // 偏移量
@@ -3276,7 +3290,7 @@ uint8_t AlarmCheckout(void)
     }
 
     //-----------------------------------------------------------------------------------
-    if(g_uAlarmReport & ALARM_COM_DEV)// 南向设备告警 或 南向设备通讯告警
+    if(g_uAlarmReport & ALARM_COM_DEV)					// 南向设备告警 或 南向设备通讯告警
     {
         if(TIMEOUT == TimeOut(s_uAlarmTimeOut,g_uTimeNow,30000))//if(s_uAlarmTimeOut>3000)  // 30s
         {
@@ -3299,6 +3313,7 @@ uint8_t AlarmCheckout(void)
             return 1;
         }
     }
+
     //-----------------------------------------------------------------------------------
     // 南向设备通讯告警
     if(g_LoggerRun.err_lost != g_LoggerAlarm.dev_lost)

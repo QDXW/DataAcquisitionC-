@@ -1,7 +1,7 @@
 #include "Usart.h"
 #include "chip.h"
 #include "GPIO.h"
-
+#include "GlobalVar.h"
 #include "ucos_ii.h"
 #include <stdio.h>
 
@@ -413,6 +413,7 @@ int16_t UartWrite(uint8_t uUartId,const void *data,uint16_t bytes)
     uint16_t ret;
     uint8_t *p8 = (uint8_t *) data;
     USART_t *pUsart;
+    g_South_Action_Newtime = OSTimeGet();
 
     if(0!=uUartId)
     {

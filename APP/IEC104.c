@@ -138,7 +138,7 @@ void IecInit(void)
             g_sIecPointCount[i].uYcSum = uYcCount;
             g_sIecPointCount[i].uYkSum = uYkCount;
             g_sIecPointCount[i].uSdSum = uSdCount;
-			//DEBUGOUT("g_sIecPointCount[%d].uSdSum:%d",i,g_sIecPointCount[i].uSdSum);
+			DEBUGOUT("g_sIecPointCount[%d].uSdSum:%d",i,g_sIecPointCount[i].uSdSum);
         }
     }
     //--------------------------------------
@@ -833,7 +833,7 @@ void Iec104TableState(IEC104_MAIN_T *pA)
     else if(0x04==pA->recv.format.data[0])// && s_uTableStart) // 导表结束
     {
         //s_uTableStart = 0;
-
+    	DEBUGOUT("Import table end1！！！\r\n");
         if(s_sPointRecord.uLastPointCount)  // 导入的最后一张点表，还没有复制到点表数组
         {
             //g_pRegPoint[s_sPointRecord.uRelPoint] = (LOGGER_MODBUS_REG_T*)calloc(s_sPointRecord.uLastPointCount,sizeof(LOGGER_MODBUS_REG_T));   // 申请空间
@@ -843,11 +843,14 @@ void Iec104TableState(IEC104_MAIN_T *pA)
                 g_pRegPoint[s_sPointRecord.uRelPoint] = WMemFree(g_pRegPoint[s_sPointRecord.uRelPoint]);
             }*/
 
+        	DEBUGOUT("Import table end2！！！\r\n");
             g_pRegPoint[s_sPointRecord.uRelPoint] = (LOGGER_MODBUS_REG_T*)WMemMalloc(g_pRegPoint[s_sPointRecord.uRelPoint],s_sPointRecord.uLastPointCount*sizeof(LOGGER_MODBUS_REG_T));   // 申请空间
-
+            DEBUGOUT("Import table end3！！！\r\n");
             if(NULL!=g_pRegPoint[s_sPointRecord.uRelPoint])
             {
+            	DEBUGOUT("Import table end4！！！\r\n");
                 memcpy(g_pRegPoint[s_sPointRecord.uRelPoint],pRegPointTemp,sizeof(LOGGER_MODBUS_REG_T)*s_sPointRecord.uLastPointCount);
+                DEBUGOUT("Import table end5！！！\r\n");
             }
             else
             {
@@ -857,14 +860,17 @@ void Iec104TableState(IEC104_MAIN_T *pA)
             s_sPointRecord.uRelPoint        = 0x00;   // 点表相对点表号
             s_sPointRecord.uLastTableNum    = 0x00;   // 记录本次点表号
             s_sPointRecord.uLastPointCount  = 0x00;   // 已经记录的信息点数清零  Iec104Init
+            DEBUGOUT("Import table end6！！！\r\n");
         }
 
         pRegPointTemp = WMemFree(pRegPointTemp); // 释放空间
+        DEBUGOUT("Import table end7！！！\r\n");
         RecordInit(1);   // 历史数据存储重置
-
+        DEBUGOUT("Import table end8！！！\r\n");
         // 擦除DataFlash空间，一共擦除两个扇区共8KB
         DataFlash_Sector_Erase(DATAFLASH_POINT_HEAD);
         DataFlash_Sector_Erase(DATAFLASH_POINT_HEAD+0x8000);
+        DEBUGOUT("Import table end9！！！\r\n");
         // 存入新数据
         for(i=0,addr=DATAFLASH_POINT_HEAD; i<MAX_device; i++)//&&i<g_DeviceSouth.device_sum
         {
@@ -893,7 +899,7 @@ void Iec104TableState(IEC104_MAIN_T *pA)
                 continue;
             }
         }
-
+        DEBUGOUT("Import table end10！！！\r\n");
         SaveEepData(EEP_DEVICE_SOUTH);//EepSavedata(EEP_LOGGER_DEVICE_INF_HEAD,(uint8_t *)&g_DeviceSouth,sizeof(g_DeviceSouth),&g_DeviceSouth.CRC);// 设备信息和点表信息存储
 
         //-----------------------------------------------------------------
@@ -944,18 +950,22 @@ void Iec104TableState(IEC104_MAIN_T *pA)
                 addr += space;
             }
         }
+        DEBUGOUT("Import table end11！！！\r\n");
         //-----------------------------------------------------------------
 		//g_DeviceEsn.uEsnMark[g_DeviceSouth.device_inf[s_sPointRecord.uRelDev].addr]=1;      
         //DEBUGOUT("addr:%d",g_DeviceSouth.device_inf[s_sPointRecord.uRelDev].addr);
 		SaveEepData(EEP_DEVICE_ESN);  // 存储南向设备ESN
         SaveEepData(EEP_DEVICE_SOFT);  // 存储南向设备ESN
+        DEBUGOUT("Import table end12！！！\r\n");
         //-----------------------------------------------------------------
         IecInit();  // iec104数据表重新初始化
+        DEBUGOUT("Import table end13！！！\r\n");
         //-----------------------------------------------------------------
         g_LoggerRun.run_status = RUNNING_WORK_READ;  // 数采运行状态-导表完成开始正常工作
+
     }
     IecCpoyMesAddr(pA);
-
+    DEBUGOUT("Import table end14！！！\r\n");
     memcpy(pA->send.format.data,pA->recv.format.data,(pA->recv.format.len-13));// I帧数据
 	IecCreateFrameI(P_TABLE,pA->recv.format.limit,R_TABLE_START,(pA->recv.format.len-13),&pA->send);
 	
@@ -1086,7 +1096,6 @@ void Iec104SouthDevInfo(IEC104_MAIN_T *pA)
 
         IecCpoyMesAddr(pA);
 
-
         memcpy(pA->send.format.data,pA->recv.format.data,(pA->recv.format.len-13));// I帧数据
         IecCreateFrameI(P_SOUTH_INFO,pA->recv.format.limit,(pA->recv.format.reasonH<<8 | R_SET_SUC),(pA->recv.format.len-13),&pA->send);
 
@@ -1100,7 +1109,6 @@ void Iec104SouthDevInfo(IEC104_MAIN_T *pA)
         if(!uRec)  // 已经没未上报的南向设备
         {
             IecCpoyMesAddr(pA);
-
 
             pA->send.format.data[0] = 0x95;
             IecCreateFrameI(P_SOUTH_INFO,pA->recv.format.limit,R_INQUIRE_SUC,1,&pA->send);
@@ -3016,7 +3024,7 @@ void TaskIec104Process(void *p)
         }
         else if(g_sIecRun.subcollect)
         {
-            IecSubSCollect(&g_sIEC,&g_sIecRun);   // 补采
+            IecSubSCollect(&g_sIEC,&g_sIecRun);   // 补采        RECORD END ADDR:
         }
 
         if(g_LoggerRun.update&0xF0)  // 远程升级超时保护

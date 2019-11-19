@@ -27,7 +27,7 @@ EF：软件小版本，00-FF
 // 数采版本：
 #define G_VER_TYPE  0xB3    // 测试版 + 数采B版本
 #define G_VER_S1    0x10    // 软件大版本
-#define G_VER_S2    0x28   // 软件小版本  小版本号最低位   最低位1:在A面；0:在B面
+#define G_VER_S2    0x2A   // 软件小版本  小版本号最低位   最低位1:在A面；0:在B面
 #define G_VER_S3    0x0001  // 软件内部版本
 //==============================================================================
 // 数采默认设备信息
@@ -288,7 +288,7 @@ void AllReset(uint8_t uSave)
     g_DeviceSouth.sd_sum     = 0x00;
     g_DeviceSouth.dd_sum     = 0x00;
 
-
+    DEBUGOUT("Reset Data Acquire! uSave = %d!\r\n",uSave);
     for(i=0; i<MAX_device; i++)
     {
         g_DeviceSouth.device_inf[i].addr = 0;

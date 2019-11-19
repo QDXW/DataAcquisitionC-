@@ -250,7 +250,6 @@ void TaskUart0Process(void *p)
     uint32_t uEnter485Time=0;
     uint32_t uNowTime=0;
 
-
     while(1)
     {
 
@@ -860,7 +859,6 @@ void DealCmd(char *uRec,uint16_t uLen)
             }
         }
         WDEBUGOUT("-¥Ú”°ÕÍ≥…-\n");
-
         break;
 
       case 20:
