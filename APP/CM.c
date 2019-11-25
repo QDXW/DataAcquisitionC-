@@ -1294,8 +1294,6 @@ void TaskModemProcess(void *p)
         }
         else
         {
-
-
 			memset(g_uDataBuffer,0,DATA_BUFFER_LEN);
             iRecLen = UartRead(CM_UART_USE, g_uDataBuffer, DATA_BUFFER_LEN, 3);
 

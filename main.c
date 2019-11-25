@@ -58,7 +58,6 @@ void ReAllocateNVIC(uint32_t offset)
     }
      LPC_SYSCTL->SYSMEMREMAP = 0x1;    /*LPC_SYSCON remap to internal RAM */
     //__enable_irq();
-
 }
 
 //============================================================================================

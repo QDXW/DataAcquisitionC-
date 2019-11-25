@@ -21,8 +21,6 @@
 #include "DataFlash.h"
 #include "CRC16.h"
 
-
-
 //====================================================================
 #define msleep(x)  OSTimeDly((x)/10+1)                // usleep((x)*1000)
 #define sleep(x)   OSTimeDly(OS_TICKS_PER_SEC*(x)+1)  // 延时x秒
@@ -136,6 +134,7 @@ uint8_t AlarmCheckout(void);
 uint8_t TimedReboot(uint8_t uRandom);
 uint8_t AlarmReport(uint8_t addr,uint8_t err_code,uint16_t reg_addr,uint8_t offset,uint8_t event,uint8_t imd);
 uint32_t g_South_Action_Newtime = 0;
+//uint8_t sDeviceinformation_Confirm = 0;       //C7查询次数
 //===============================================================================
 //===============================================================================
 //===============================================================================
@@ -676,18 +675,28 @@ int8_t SlaveDeviceAutoAllocation(void)
 	uint8_t uTempAddr;
 	int8_t iResult1B;
 	uint8_t uLen;
+	uint8_t Confirm_Count = 0;
 	static uint8_t uDTAddr = 1;       //D5 1B轮询
-		
+
 	if(NORTH_OK != g_LoggerRun.north_status)
 	{
 		return SEARCH_NOTCONNECT;
 	}
 
-	if(ReportCtrlRead(REPORT_HW_DEVICE)) // 上报的设备信息没有被平台确认
+	while(Confirm_Count > 2)
 	{
-		return SEARCH_ING;
+		if(ReportCtrlRead(REPORT_HW_DEVICE)) // 上报的设备信息没有被平台确认
+		{
+			sleep(1);
+			Confirm_Count = 3;
+//			return SEARCH_ING;
+		}
+		else
+		{
+			Confirm_Count++;
+		}
 	}
-	
+
 	if(uDTAddr > 1) 
 	{ 
 		 for(uint8_t uAddr=1;uAddr<MAX_device+1;)
@@ -727,6 +736,7 @@ int8_t SlaveDeviceAutoAllocation(void)
 			 msleep(1500);// 延时
 			 //return SEARCH_ING;
 		 }
+
 		 if(RUNNING_SEARCH_END == g_LoggerRun.run_status)
 		 {
 			 msleep(200);// 延时
@@ -2221,14 +2231,12 @@ uint8_t SouthLogTransmission(uint16_t uFrameCount)
 //			 g_sIecSend.format.maddrL = uTmpData[3];  //包序号低位
 //             g_sIecSend.format.maddrM = uTmpData[2];  //包序号高位
              g_sIecSend.format.maddrH = 0x00;
-
 			 uDataLen = uRecBuffer[6];   //获取日志帧长度
 			  
-
              g_DT1000Updata.CRC = CalculateCRC(&uRecBuffer[7],uDataLen);
 			 g_sIecSend.format.data[uDataLen]   = g_DT1000Updata.CRC&0xFF;
 			 g_sIecSend.format.data[uDataLen+1] = g_DT1000Updata.CRC<<8;
-			 DEBUGOUT("PackageDataLen: %d  g_DT1000Updata.CRC:%04X\n",uDataLen,g_DT1000Updata.CRC);
+//			 DEBUGOUT("PackageDataLen: %d  g_DT1000Updata.CRC:%04X\n",uDataLen,g_DT1000Updata.CRC);
 			 //DataFlash_Write(DATAFLASH_DT1000_LOG+uFrameSum*i,&uRecBuffer[7],uRecBuffer[6]);
 			 memcpy(g_sIecSend.format.data,&uRecBuffer[7],uDataLen);
 			 msleep(5);
@@ -2267,7 +2275,7 @@ void SouthLogEnd(void)
 		uTmpCrc.c[1] = uRecBuffer[4];  //接收到表计文件CRC高位
 		uTmpCrc.c[0] = uRecBuffer[5];  //接收到表计文件CRC低位
 
-        DEBUGOUT("g_DT1000Updata.CRC:%04X  uTmpCrc.u:%04X",g_DT1000Updata.CRC,uTmpCrc.u);
+//        DEBUGOUT("g_DT1000Updata.CRC:%04X  uTmpCrc.u:%04X",g_DT1000Updata.CRC,uTmpCrc.u);
 		if(g_DT1000Updata.CRC == uTmpCrc.u)
 		{
              //传输总包数
@@ -2410,7 +2418,6 @@ void TaskSouthInquire(void *p)
 					 }
 					
 					 uFrameCount = g_DT1000Updata.frame_sum;
-//					 DEBUGOUT("Frame Sum: %d",g_DT1000Updata.frame_sum);
 					 IecCreateFrameI(P_FILE_INOUT,0x01,R_TRANS_START_ACK,5,&g_sIecSend);
                      break;            
 				}
@@ -2418,7 +2425,6 @@ void TaskSouthInquire(void *p)
 				{     
 				    sleep(5);
 				}
-				
 			}
 		   sleep(2);
 
@@ -2435,7 +2441,6 @@ void TaskSouthInquire(void *p)
 					   if((g_sIEC.recv.format.type == P_FILE_INOUT) && (g_sIEC.recv.format.reasonL == R_DATA_TRANS))  //接收确认帧类型及传输原因
 					   {
 						   uRecFrame = (g_sIEC.recv.format.data[0] | g_sIEC.recv.format.data[1]<<8);  //接收帧序号
-//						   DEBUGOUT("uRecFrame:%d  uFrameCount = %d\n",uRecFrame,(g_DT1000Updata.frame_sum - uFrameCount));
 						   if(uRecFrame == (g_DT1000Updata.frame_sum - uFrameCount))   //比对接收与发送序号是否相同
 						   {
 							   uFrameCount--;
@@ -2444,7 +2449,6 @@ void TaskSouthInquire(void *p)
  					   }
 					   
 			   		   TimeCount++;
-//					   DEBUGOUT("TimeCount:%d  uFrameCount:%d\n",TimeCount,uFrameCount);
 					   if(TimeCount>=30)   //如果平台确认帧时间超过30s，退出日志传输
 					   {
 						   TimeCount=0;
@@ -2459,7 +2463,6 @@ void TaskSouthInquire(void *p)
 			   }    
 		   }
 		   
-//		   DEBUGOUT("uFrameCount:%d  nDataLen:%d\n",uFrameCount,g_DT1000Updata.nDataLen);
            if((uFrameCount == 0) && (g_DT1000Updata.nDataLen != 0))
            {
 			   SouthLogEnd();	//表计日志导出结束
@@ -2467,7 +2470,6 @@ void TaskSouthInquire(void *p)
 		   g_LoggerRun.uFileIO_status = 0;
 		}
 		g_LoggerRun.uFileIO_status = 0;
-//		DEBUGOUT("Normal South Inquire!!!\n");
 		//--------------------------------------------------------------------------------
         TimedReboot(120);    //定时重启
         AlarmCheckout();     //告警检出
@@ -2478,7 +2480,6 @@ void TaskSouthInquire(void *p)
         {
         case SOUTH_INQUIRE:
             uRoundEnd = SouthInquire();  // 查询南向设备
-//            DEBUGOUT("South Inquire !!!\r\n");
             if(SOUTH_WORK == uRoundEnd || SOUTH_WAIT == uRoundEnd)
             {
                 msleep(100);
@@ -2493,14 +2494,13 @@ void TaskSouthInquire(void *p)
             {
                 sSouth.uBaudRate = SetBaudRate(sSouth.uBaudRate,BAUDRATE_9600);// 波特率切换到9600，用于搜索南向设备
                 uSouthStep = SOUTH_DISCORY;
+                DEBUGOUT("South Discory!!!\r\n");
             }	
             break;
 
         case SOUTH_DISCORY:
-
             uRoundEnd = SlaveDeviceAutoAllocation();   // 搜索表计设备并分配地址
             //sleep(3);
-            DEBUGOUT("South Discory!!!\r\n");
             if(SEARCH_END == uRoundEnd) // 一个循搜索询结束，不需要导表
             {
 				uDiscoryStartTime = g_uTimeNow;
@@ -2513,7 +2513,7 @@ void TaskSouthInquire(void *p)
             }
             else if(SEARCH_NOTCONNECT == uRoundEnd) // 平台未连接
             {
-                if(RUNNING_EMPTY == g_LoggerRun.run_status)   // 空数采
+                if(RUNNING_EMPTY == g_LoggerRun.run_status)   // 空数采 g_sIecPointCount
                 {
                     OSTimeDlyHMSM(0,0,10,0);
                 }
@@ -2532,13 +2532,11 @@ void TaskSouthInquire(void *p)
         case SOUTH_POLL:
             uRoundNowTime = g_uTimeNow;   // 大循环现在时间
 			uDiscoryNowTime = g_uTimeNow;  //自发现现在时间
-//			DEBUGOUT("South Poll!!!\r\n");
 			if(TimeGapJudge(uDiscoryStartTime,uDiscoryNowTime,DISCORY_ROUND_TIME))
 		    {
                  if(TimeGapJudge(uRoundStartTime,uRoundNowTime,SLAVE_ROUND_TIME))
                  {
 					 sleep(1);
-//					 DEBUGOUT("g_LoggerRun.north_status = %d  normal value is 5 !!!\r\n",g_LoggerRun.north_status);
 					 if(NORTH_OK == g_LoggerRun.north_status)
 					 {
 						 uRoundEnd = SouthInquireAlarm();  // 查询南向设备 
@@ -2587,11 +2585,11 @@ void TaskSouthInquire(void *p)
 				}
 
 				uSouthStep = SOUTH_DISCORY;
+				DEBUGOUT("South Discory!!!\r\n");
 			}
 			
             break;
         case SOUTH_TIME:
-//        	DEBUGOUT("South status:%d!!!\r\n",g_LoggerRun.run_status);
             if(RUNNING_WORK_READ == g_LoggerRun.run_status)
             {
                 uRoundNowTime = g_uTimeNow;   // 大循环现在时间

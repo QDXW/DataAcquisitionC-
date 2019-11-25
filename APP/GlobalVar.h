@@ -283,7 +283,6 @@ enum  LOGGER_RUNNING_STATE
     RUNNING_INPUT_TABLE    = 6,    // 导入点表BB 89
     RUNNING_INPUT_104      = 7,    // 导入设备104表信息BB 8A
     //RUNNING_INPUT_INFO     = 4,    // 导入信息过程中，包括全局信息，设备信息，点表信息等，在导入信息过程中，南向查询暂停
-//	RUNNING_INPUT_TABLE_INTEVAL    = 8,    // 导入点表BB 89
 
     RUNNING_WORK_READ      = 10,   // 已经开站完成，正常工作
 };//LOGGER_RUNNING_STATE_E;

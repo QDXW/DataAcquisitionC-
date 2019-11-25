@@ -43,7 +43,7 @@ uint32_t *IEC104_DATA_YC;   // IEC104数据-遥测指针，动态申请空间
 uint8_t  *IEC104_DATA_YK;   // IEC104数据-遥控指针，动态申请空间
 uint32_t *IEC104_DATA_SD;   // IEC104数据-设点指针，动态申请空间
 uint32_t *IEC104_DATA_DD;   // IEC104数据-电度指针，动态申请空间
-uint16_t     preFrameDataCrc = 0;       // 上一次的I帧数据CRC值
+uint16_t preFrameDataCrc = 0;       // 上一次的I帧数据CRC值
 //========================================================================
 IEC104_COUNT_T g_sIecPointCount[MAX_device];  // 点表信息点统计
 
@@ -716,15 +716,8 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 		}
 		else //继续传输点表
 		{
-			if(Data_resend_count > 1)
-			{
-				g_LoggerRun.run_status = RUNNING_WORK_READ;  	//数采运行状态-导表完成开始正常工作
-				return;
-			}
-
 			if(preFrameDataCrc != CalculateCRC(pA->recv.format.data,(pA->recv.format.len-13)))
 			{
-				preFrameDataCrc = CalculateCRC(pA->recv.format.data,(pA->recv.format.len-13));
 				for(i=1,j=s_sPointRecord.uLastPointCount; i<pA->recv.format.len-14; j++)
 				{
 					if(j <= MAX_POINT_ONE_TABLE)
@@ -737,7 +730,7 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 					}
 					else
 					{
-						DEBUGOUT("\nSignal point overshoot!\nAll signal location：%d\n",s_sPointRecord.uLastPointCount);
+						DEBUGOUT("\nInformation point beyond!\r\nTotal number of information point：%d\r\n",s_sPointRecord.uLastPointCount);
 						j -= 1;
 						return;
 					}
@@ -746,8 +739,10 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 			}
 			else
 			{
+				printf("Repeat the import point table!!!\r\n");
 				Data_resend_count += 1;
-				g_LoggerRun.run_status = RUNNING_WORK_READ;  	//数采运行状态-导表完成开始正常工作
+				if(Data_resend_count > 1)
+					g_LoggerRun.run_status = RUNNING_WORK_READ;  	//数采运行状态-导表完成开始正常工作
 				return;
 			}
 		}
@@ -756,7 +751,8 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 		g_DeviceSouth.protocol[s_sPointRecord.uRelPoint].protocol_num   = s_sPointRecord.uLastTableNum;  	//点表号
 		g_DeviceSouth.protocol[s_sPointRecord.uRelPoint].protocol_type  = pA->recv.format.data[0];         	//点表类型
 		g_DeviceSouth.protocol[s_sPointRecord.uRelPoint].mess_point_sum = s_sPointRecord.uLastPointCount;   //信息点总数
-		DEBUGOUT("\nAll signal location：%d\n",s_sPointRecord.uLastPointCount);
+		DEBUGOUT("\nTotal number of information point：%d\n",s_sPointRecord.uLastPointCount);
+		preFrameDataCrc = CalculateCRC(pA->recv.format.data,(pA->recv.format.len-13));
 
 		IecCpoyMesAddr(pA);
 		memcpy(pA->send.format.data,pA->recv.format.data,(pA->recv.format.len-13));		// I帧数据
@@ -833,7 +829,6 @@ void Iec104TableState(IEC104_MAIN_T *pA)
     else if(0x04==pA->recv.format.data[0])// && s_uTableStart) // 导表结束
     {
         //s_uTableStart = 0;
-    	DEBUGOUT("Import table end1！！！\r\n");
         if(s_sPointRecord.uLastPointCount)  // 导入的最后一张点表，还没有复制到点表数组
         {
             //g_pRegPoint[s_sPointRecord.uRelPoint] = (LOGGER_MODBUS_REG_T*)calloc(s_sPointRecord.uLastPointCount,sizeof(LOGGER_MODBUS_REG_T));   // 申请空间
@@ -843,14 +838,10 @@ void Iec104TableState(IEC104_MAIN_T *pA)
                 g_pRegPoint[s_sPointRecord.uRelPoint] = WMemFree(g_pRegPoint[s_sPointRecord.uRelPoint]);
             }*/
 
-        	DEBUGOUT("Import table end2！！！\r\n");
             g_pRegPoint[s_sPointRecord.uRelPoint] = (LOGGER_MODBUS_REG_T*)WMemMalloc(g_pRegPoint[s_sPointRecord.uRelPoint],s_sPointRecord.uLastPointCount*sizeof(LOGGER_MODBUS_REG_T));   // 申请空间
-            DEBUGOUT("Import table end3！！！\r\n");
             if(NULL!=g_pRegPoint[s_sPointRecord.uRelPoint])
             {
-            	DEBUGOUT("Import table end4！！！\r\n");
                 memcpy(g_pRegPoint[s_sPointRecord.uRelPoint],pRegPointTemp,sizeof(LOGGER_MODBUS_REG_T)*s_sPointRecord.uLastPointCount);
-                DEBUGOUT("Import table end5！！！\r\n");
             }
             else
             {
@@ -860,17 +851,13 @@ void Iec104TableState(IEC104_MAIN_T *pA)
             s_sPointRecord.uRelPoint        = 0x00;   // 点表相对点表号
             s_sPointRecord.uLastTableNum    = 0x00;   // 记录本次点表号
             s_sPointRecord.uLastPointCount  = 0x00;   // 已经记录的信息点数清零  Iec104Init
-            DEBUGOUT("Import table end6！！！\r\n");
         }
 
         pRegPointTemp = WMemFree(pRegPointTemp); // 释放空间
-        DEBUGOUT("Import table end7！！！\r\n");
         RecordInit(1);   // 历史数据存储重置
-        DEBUGOUT("Import table end8！！！\r\n");
         // 擦除DataFlash空间，一共擦除两个扇区共8KB
         DataFlash_Sector_Erase(DATAFLASH_POINT_HEAD);
         DataFlash_Sector_Erase(DATAFLASH_POINT_HEAD+0x8000);
-        DEBUGOUT("Import table end9！！！\r\n");
         // 存入新数据
         for(i=0,addr=DATAFLASH_POINT_HEAD; i<MAX_device; i++)//&&i<g_DeviceSouth.device_sum
         {
@@ -899,7 +886,6 @@ void Iec104TableState(IEC104_MAIN_T *pA)
                 continue;
             }
         }
-        DEBUGOUT("Import table end10！！！\r\n");
         SaveEepData(EEP_DEVICE_SOUTH);//EepSavedata(EEP_LOGGER_DEVICE_INF_HEAD,(uint8_t *)&g_DeviceSouth,sizeof(g_DeviceSouth),&g_DeviceSouth.CRC);// 设备信息和点表信息存储
 
         //-----------------------------------------------------------------
@@ -950,22 +936,18 @@ void Iec104TableState(IEC104_MAIN_T *pA)
                 addr += space;
             }
         }
-        DEBUGOUT("Import table end11！！！\r\n");
         //-----------------------------------------------------------------
 		//g_DeviceEsn.uEsnMark[g_DeviceSouth.device_inf[s_sPointRecord.uRelDev].addr]=1;      
         //DEBUGOUT("addr:%d",g_DeviceSouth.device_inf[s_sPointRecord.uRelDev].addr);
 		SaveEepData(EEP_DEVICE_ESN);  // 存储南向设备ESN
         SaveEepData(EEP_DEVICE_SOFT);  // 存储南向设备ESN
-        DEBUGOUT("Import table end12！！！\r\n");
         //-----------------------------------------------------------------
         IecInit();  // iec104数据表重新初始化
-        DEBUGOUT("Import table end13！！！\r\n");
         //-----------------------------------------------------------------
         g_LoggerRun.run_status = RUNNING_WORK_READ;  // 数采运行状态-导表完成开始正常工作
 
     }
     IecCpoyMesAddr(pA);
-    DEBUGOUT("Import table end14！！！\r\n");
     memcpy(pA->send.format.data,pA->recv.format.data,(pA->recv.format.len-13));// I帧数据
 	IecCreateFrameI(P_TABLE,pA->recv.format.limit,R_TABLE_START,(pA->recv.format.len-13),&pA->send);
 	
