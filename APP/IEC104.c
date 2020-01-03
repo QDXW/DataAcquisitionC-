@@ -18,7 +18,7 @@
 #define msleep(x)  OSTimeDly((x)/10+1)                // usleep((x)*1000)
 #define sleep(x)   OSTimeDly(OS_TICKS_PER_SEC*(x)+1)  // 延时x秒
 //========================================================================
-#define MAX_POINT_ONE_TABLE    315                   // 一张点表最大点数，申请临时点表空间用
+#define MAX_POINT_ONE_TABLE    315                  // 一张点表最大点数，申请临时点表空间用
 //========================================================================
 #define LOGFRAMELENTH          200                   // 日志上传一帧发送的字节数
 //========================================================================
@@ -114,9 +114,17 @@ void IecInit(void)
             uYxCount = 0;
             uYcCount = 0;
             uYkCount = 0;
+            uSdCount = 0;
 
-            for(uCcount=0,uYcCount=0,uYxCount=0; uCcount<g_DeviceSouth.protocol[i].mess_point_sum; uCcount++)
+//            DEBUGOUT("g_sIecPointCount[%d].Sum:%d\r\n",i,g_DeviceSouth.protocol[i].mess_point_sum);
+//            DEBUGOUT("g_sIecPointCount[%d].YXSum:%d\r\n",i,g_DeviceSouth.yx_sum);
+//            DEBUGOUT("g_sIecPointCount[%d].YCSum:%d\r\n",i,g_DeviceSouth.yc_sum);
+//            DEBUGOUT("g_sIecPointCount[%d].YTSum:%d\r\n",i,g_DeviceSouth.yk_sum);
+//            DEBUGOUT("g_sIecPointCount[%d].SDSum:%d\r\n",i,g_DeviceSouth.sd_sum);
+//            for(uCcount=0,uYcCount=0,uYxCount=0; uCcount<g_DeviceSouth.protocol[i].mess_point_sum; uCcount++)
+            for(uCcount=0; uCcount<g_DeviceSouth.protocol[i].mess_point_sum; uCcount++)
             {
+//            	DEBUGOUT("g_pRegPoint[%d][%d].reg_type.type.mess:%d\r\n",i,uCcount,g_pRegPoint[i][uCcount].reg_type.type.mess);
                 if(TYPE_YC==g_pRegPoint[i][uCcount].reg_type.type.mess)
                 {
                     uYcCount++;
@@ -138,7 +146,11 @@ void IecInit(void)
             g_sIecPointCount[i].uYcSum = uYcCount;
             g_sIecPointCount[i].uYkSum = uYkCount;
             g_sIecPointCount[i].uSdSum = uSdCount;
-			DEBUGOUT("g_sIecPointCount[%d].uSdSum:%d",i,g_sIecPointCount[i].uSdSum);
+//			DEBUGOUT("g_sIecPointCount[%d].uYxSum:%d\r\n",i,g_sIecPointCount[i].uYxSum);
+//			DEBUGOUT("g_sIecPointCount[%d].uYcSum:%d\r\n",i,g_sIecPointCount[i].uYcSum);
+//			DEBUGOUT("g_sIecPointCount[%d].uYkSum:%d\r\n",i,g_sIecPointCount[i].uYkSum);
+//			DEBUGOUT("g_sIecPointCount[%d].uSdSum:%d\r\n",i,g_sIecPointCount[i].uSdSum);
+//			DEBUGOUT("g_sIecPointCount[%d].Sum:%d\r\n",i,uYxCount+uYcCount+uYkCount+uSdCount);
         }
     }
     //--------------------------------------
@@ -639,18 +651,21 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
     uint16_t i,j;
     uint8_t k;
     Uint_Char_Convert temp;
+//    uint16_t gYcSum = 0;
 
-    if(R_INPUT_GLO_INFO==pA->recv.format.reasonL)// 传输原因-导入全局信息0x88
+    if(R_INPUT_GLO_INFO==pA->recv.format.reasonL)		// 传输原因-导入全局信息0x88
     {
-        g_LoggerRun.run_status = RUNNING_INPUT_GOLB;  // 标记数采状态为导入全局信息
+    	gImport_Table_time = OSTimeGet();
+        g_LoggerRun.run_status = RUNNING_INPUT_GOLB;  	// 标记数采状态为导入全局信息
 
-		g_DeviceSouth.device_sum = pA->recv.format.data[0];  // 设备总数
+		g_DeviceSouth.device_sum = pA->recv.format.data[0];  	// 设备总数
 		g_DeviceSouth.yx_sum     = pA->recv.format.data[2]<<8 | pA->recv.format.data[1];  // 遥信总数
 		g_DeviceSouth.yc_sum     = pA->recv.format.data[4]<<8 | pA->recv.format.data[3];  // 遥信总数
 		g_DeviceSouth.yk_sum     = pA->recv.format.data[6]<<8 | pA->recv.format.data[5];  // 遥信总数
 		g_DeviceSouth.sd_sum     = pA->recv.format.data[8]<<8 | pA->recv.format.data[7];  // 遥信总数
 		g_DeviceSouth.dd_sum     = pA->recv.format.data[10]<<8 | pA->recv.format.data[9]; // 遥信总数
-
+//		gYcSum = g_DeviceSouth.yc_sum;
+//		printf("/************Pinnet gYcSum = %d\r\n",gYcSum);
 		IecCpoyMesAddr(pA);
 
 		memcpy(pA->send.format.data,pA->recv.format.data,(pA->recv.format.len-13));// I帧数据
@@ -659,9 +674,10 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 		//iec_run.running = Iec104_status_process(iec_run.running,P_INPUT_TABLE,R_INPUT_GLO_INFO);//RUNNING_INPUT_GLO;
 		g_LoggerRun.run_status = RUNNING_INPUT_GOLB;
     }
-    else if(R_INPUT_TYPE_INFO==pA->recv.format.reasonL)// 传输原因-导入设备类型信息0x89
+    else if(R_INPUT_TYPE_INFO==pA->recv.format.reasonL)	// 传输原因-导入设备类型信息0x89
     {
-    	g_LoggerRun.run_status = RUNNING_INPUT_TABLE;  // 标记数采状态为导入点表信息
+    	gImport_Table_time = OSTimeGet();
+    	g_LoggerRun.run_status = RUNNING_INPUT_TABLE;  	// 标记数采状态为导入点表信息
 		if(NULL==pRegPointTemp)
 		{
 			pRegPointTemp = (LOGGER_MODBUS_REG_T*)WMemMalloc(pRegPointTemp,MAX_POINT_ONE_TABLE * sizeof(LOGGER_MODBUS_REG_T));   // 申请空间
@@ -672,7 +688,7 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 
 			if(NULL==pRegPointTemp)
 			{
-//				DEBUGOUT("要点表临时空间失败\n");// 申请空间失败
+//				DEBUGOUT("要点表临时空间失败\n");				// 申请空间失败
 				return;
 			}
 		}
@@ -682,7 +698,7 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 
 		if(s_sPointRecord.uLastTableNum != temp.u)
 		{
-			if(0!=s_sPointRecord.uLastTableNum)  // 记录的点表号非零，上一张点表传输完成
+			if(0!=s_sPointRecord.uLastTableNum)  		// 记录的点表号非零，上一张点表传输完成
 			{
 				g_pRegPoint[s_sPointRecord.uRelPoint] = (LOGGER_MODBUS_REG_T*)WMemMalloc(g_pRegPoint[s_sPointRecord.uRelPoint],s_sPointRecord.uLastPointCount*sizeof(LOGGER_MODBUS_REG_T));   // 申请空间
 
@@ -692,12 +708,12 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 				}
 				else
 				{
-					DEBUGOUT("要点表空间失败1\n");
+					DEBUGOUT("要点表空间失败 ! ! ! \r\n");
 				}
 
 				s_sPointRecord.uRelPoint++;
 				s_sPointRecord.uLastTableNum = temp.u;  // 记录本次点表号
-				s_sPointRecord.uLastPointCount = 0;        // 已经记录的信息点数清零
+				s_sPointRecord.uLastPointCount = 0;		// 已经记录的信息点数清零
 			}
 			else // 头一张点表
 			{
@@ -711,6 +727,7 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 				pRegPointTemp[j].reg_count          = pA->recv.format.data[i+3];   // 信息点长度
 				pRegPointTemp[j].reg_type.type.data = pA->recv.format.data[i+4];   // 数据类型，整型、浮点、字符串……
 				i += 5;
+//				DEBUGOUT("/*********** Pinnet Device%d Information point:0x%d!\r\n",j,pRegPointTemp[j].reg_type.type.mess);
 			}
 			s_sPointRecord.uLastPointCount = j;
 		}
@@ -727,10 +744,11 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
 						pRegPointTemp[j].reg_count          = pA->recv.format.data[i+3];   //信息点长度
 						pRegPointTemp[j].reg_type.type.data = pA->recv.format.data[i+4];   //数据类型，整型、浮点、字符串……
 						i += 5;
+//						DEBUGOUT("/*********** Pinnet Device%d Information point:0x%d!\r\n",j,pRegPointTemp[j].reg_type.type.mess);
 					}
 					else
 					{
-						DEBUGOUT("\nInformation point beyond!\r\nTotal number of information point：%d\r\n",s_sPointRecord.uLastPointCount);
+//						DEBUGOUT("\nInformation point beyond!\r\nTotal number of information point：%d\r\n",s_sPointRecord.uLastPointCount);
 						j -= 1;
 						return;
 					}
@@ -762,6 +780,7 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
     }
     else if(R_INPUT_DEV_INFO==pA->recv.format.reasonL)// 传输原因-导入设备信息0x8A
     {
+    	gImport_Table_time = OSTimeGet();
         g_LoggerRun.run_status = RUNNING_INPUT_104;  // 标记数采状态为导入设备104表信息
 
         //for(i=0,j=0; i<(pA->recv.format.len-10) && j<MAX_device; j++)
@@ -781,6 +800,11 @@ void Iec104InputTable(IEC104_MAIN_T *pA)
             g_DeviceSouth.device_inf[j].sd_start_addr = pA->recv.buff[i+24]<<8 | pA->recv.buff[i+23];  // 设点起始地址
             g_DeviceSouth.device_inf[j].dd_start_addr = pA->recv.buff[i+26]<<8 | pA->recv.buff[i+25];  // 电度起始地址
             i += 15;
+//            printf("/************Pinnet g_DeviceSouth.device_inf[%d].yx_start_addr =  0x%04X\r\n",j,g_DeviceSouth.device_inf[j].yx_start_addr);
+//            printf("/************Pinnet g_DeviceSouth.device_inf[%d].yc_start_addr =  0x%04X\r\n",j,g_DeviceSouth.device_inf[j].yc_start_addr);
+//            printf("/************Pinnet g_DeviceSouth.device_inf[%d].yk_start_addr =  0x%04X\r\n",j,g_DeviceSouth.device_inf[j].yk_start_addr);
+//            printf("/************Pinnet g_DeviceSouth.device_inf[%d].sd_start_addr =  0x%04X\r\n",j,g_DeviceSouth.device_inf[j].sd_start_addr);
+//            printf("/************Pinnet g_DeviceSouth.device_inf[%d].dd_start_addr =  0x%04X\r\n",j,g_DeviceSouth.device_inf[j].dd_start_addr);
 
             // 找出相对点表号
             for(k=0; k<MAX_device; k++)
@@ -823,11 +847,13 @@ void Iec104TableState(IEC104_MAIN_T *pA)
     if(0x01==pA->recv.format.data[0] ) // 启动导表
     {
         g_LoggerRun.run_status = RUNNING_INPUT_START;  // 标记数采状态为启动导表
+        gImport_Table_time = OSTimeGet();
 
         //s_uTableStart = 1;
     }
     else if(0x04==pA->recv.format.data[0])// && s_uTableStart) // 导表结束
     {
+    	gImport_Table_time = 0;
         //s_uTableStart = 0;
         if(s_sPointRecord.uLastPointCount)  // 导入的最后一张点表，还没有复制到点表数组
         {
@@ -850,7 +876,7 @@ void Iec104TableState(IEC104_MAIN_T *pA)
 
             s_sPointRecord.uRelPoint        = 0x00;   // 点表相对点表号
             s_sPointRecord.uLastTableNum    = 0x00;   // 记录本次点表号
-            s_sPointRecord.uLastPointCount  = 0x00;   // 已经记录的信息点数清零  Iec104Init
+            s_sPointRecord.uLastPointCount  = 0x00;   // 已经记录的信息点数清零
         }
 
         pRegPointTemp = WMemFree(pRegPointTemp); // 释放空间
@@ -1124,6 +1150,7 @@ void Iec104DevReportAck(IEC104_MAIN_T *pA)
             Iec104HandleHwSoftRenovate(pA);
         }
     }
+    gImport_Table_time = 0;
 }
 
 /******************************************************************************
@@ -2694,8 +2721,6 @@ void Iec104SD(IEC104_MAIN_T *pA)
     Uint_Char_Convert temp,temp_104;
 	U32_F_Char_Convert  ctemp;
 	uint8_t SdSum;
-	//uint8_t err;
-	//uint8_t *pMes;
 
     if(R_SETTING==pA->recv.format.reasonL) // 激活06
     {
@@ -2708,16 +2733,11 @@ void Iec104SD(IEC104_MAIN_T *pA)
 
 		if(temp.u > 0x6400)
 		{
+			DEBUGOUT("非法遥调地址\n");
 			return;
 		}
-		temp.u = temp.u - 0x6201;  // 计算出相对遥控地址
-
-		if(temp.u >= g_DeviceSouth.sd_sum)
-		{
-			DEBUGOUT("非法遥调地址\n");
-		}
 		memcpy(ctemp.c,pA->recv.format.data,sizeof(ctemp.c));
-		ctemp.u=ctemp.f;
+//		ctemp.u=ctemp.f;
 		IEC104_DATA_SD[0] = SdSum;  // 遥调点数
 		IEC104_DATA_SD[1] = temp_104.u;  // 遥调地址
 		IEC104_DATA_SD[2] = ctemp.u;  	// 遥调点值
@@ -2735,7 +2755,7 @@ void Iec104SD(IEC104_MAIN_T *pA)
 			}
 			temp.u = temp.u - 0x6201;  // 计算出相对遥调地址
 			memcpy(ctemp.c,&pA->recv.format.data[i*7],sizeof(ctemp.c));
-			ctemp.u=ctemp.f;
+//			ctemp.u=ctemp.f;
 			
 			IEC104_DATA_SD[i*2+1] = temp_104.u;  	// 遥调地址
 			IEC104_DATA_SD[(i+1)*2] = ctemp.u;  	// 遥调点值
@@ -2756,21 +2776,14 @@ void Iec104SD(IEC104_MAIN_T *pA)
 			 SdContinuousAddr=1;    //遥调的连续地址 
 			 temp.c[0] = pA->recv.format.maddrL;
 			 temp.c[1] = pA->recv.format.maddrM;
-             
-             if(temp.u > 0x6400)
+             if(temp.u > 0x6400 || temp.u < 0x6201)
              {
+            	 DEBUGOUT("非法遥调地址\n");
                  return;
              }
-			 temp.u = temp.u - 0x6201;	// 计算出相对遥控地址
-
-			 if(temp.u >= g_DeviceSouth.sd_sum)
-			 {
-				  DEBUGOUT("非法遥调地址\n");
-			 }
 			 IEC104_DATA_SD[0] = SdSum;		// 查询的遥调点个数
 			 IEC104_DATA_SD[1] = temp.u;	// 查询的第几个遥调点
 			 OSQPost(MesQ, &s_uSouthReadSd);
-			 
 			 sleep(2);
 			 for(uint8_t i=0;i<SdSum;i++)
 			 {
@@ -2785,6 +2798,7 @@ void Iec104SD(IEC104_MAIN_T *pA)
 			IecCpoyMesAddr(pA);
 			IecCreateFrameI(p_SD,pA->recv.format.limit,R_INQUIRE_SUC,4*SdSum,&pA->send);
 		} 
+		DEBUGOUT("YT ACQUIRY TASK END!!! \r\n");
     }
 }
 /******************************************************************************

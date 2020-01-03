@@ -195,7 +195,7 @@ int32_t CollectData(IEC104_MAIN_T *pA, uint32_t *uNeedReadFlash)
     struct tm dst = {0};
     struct tm cuTm = {0};
     float result = 0;
-    IEC104_MAIN_T *recvpkt = pA;
+//    IEC104_MAIN_T *recvpkt = pA;
     SYSTEMTIME *pTime;
     
     pTime = RealTimeGet();

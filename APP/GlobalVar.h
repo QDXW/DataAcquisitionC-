@@ -210,8 +210,6 @@ typedef struct
     uint8_t          reg_count;            // 数据长度
 }LOGGER_MODBUS_REG_T;
 
-
-
 //==============================================================================
 //==============================================================================
 /*******************************************************************************
@@ -368,6 +366,7 @@ extern DT1000UPDATA_MARK_T        g_DT1000Updata;
 extern uint8_t SouthSwich;
 extern uint8_t SdContinuousAddr;
 extern uint32_t g_South_Action_Newtime;
+extern uint32_t gImport_Table_time;
 
 //==============================================================================
 extern uint8_t GetVerType(void);

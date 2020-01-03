@@ -1,7 +1,5 @@
 #include "SlaveUnit.h"
 #include <time.h>
-
-
 #include "ModbusMaster.h"
 #include "GlobalVar.h"
 #include "Usart.h"
@@ -13,7 +11,6 @@
 #include <stdlib.h>
 //#include "tool.h"
 #include "WatchDog.h"
-
 #include <math.h>
 #include "tool.h"
 #include "log.h"
@@ -89,11 +86,11 @@ typedef struct
 
 
 // 表计升级包总字节数
-typedef struct
-{
-    uint32_t nDataLen;  //文件字节长度
-    uint32_t nFileCrc;  //文件数据CRC
-} DT1000UPDATA_DATA_T;
+//typedef struct
+//{
+//    uint32_t nDataLen;  //文件字节长度
+//    uint32_t nFileCrc;  //文件数据CRC
+//} DT1000UPDATA_DATA_T;
 // 用于表计升级
 
 
@@ -133,8 +130,8 @@ void AlarmAddDev(uint8_t uRelAddr,uint8_t uSum,uint16_t uModAddr,uint16_t uValue
 uint8_t AlarmCheckout(void);
 uint8_t TimedReboot(uint8_t uRandom);
 uint8_t AlarmReport(uint8_t addr,uint8_t err_code,uint16_t reg_addr,uint8_t offset,uint8_t event,uint8_t imd);
-uint32_t g_South_Action_Newtime = 0;
-//uint8_t sDeviceinformation_Confirm = 0;       //C7查询次数
+uint32_t g_South_Action_Newtime = 0,gImport_Table_time = 0;
+
 //===============================================================================
 //===============================================================================
 //===============================================================================
@@ -564,7 +561,6 @@ void HwDeviceReport(uint8_t uStep,const uint8_t *pData)
             g_sIecSend.format.maddrH = 0x00;
             memcpy(g_sIecSend.format.data,&g_sBurst.yx_data,(uDataHead));// I帧数据
             IecCreateFrameI(P_HW_INFO,1,R_SETTING,(uDataHead),&g_sIecSend); // 0xC7  //199  // 华为设备信息
-
             g_sBurst.yx_count = 0;  // 查询到的0x2B设备数量
             uDataHead = 0;
 
@@ -716,6 +712,7 @@ int8_t SlaveDeviceAutoAllocation(void)
 				  }
 				  else if(RUNNING_SEARCH_HW == g_LoggerRun.run_status)// 新数采搜索华为设备
 				  {
+					  gImport_Table_time = OSTimeGet();
 					  DEBUGOUT("[Empty Device Discovery]%d: %s\n",uRecBuffer[0],&uRecBuffer[11]);
 					  g_DeviceEsn.uEsnMark[uAddr] = 1;
 					  HwDeviceNew(uRecBuffer[0],uRecBuffer);
@@ -730,6 +727,8 @@ int8_t SlaveDeviceAutoAllocation(void)
 
 		 if(uNewHWDevCount) // 有搜索到华为设备
 		 {
+			 gImport_Table_time = OSTimeGet();
+//			 DEBUGOUT("/**********Pinnet Report Have Device!!!\r\n");
 			 HwDeviceReport(2,uRecBuffer);  // 上报可能暂存的数据
 			 uNewHWDevCount = 0;
 			 g_LoggerRun.run_status = RUNNING_SEARCH_END;  // 标记数采状态为搜索华为设备结束
@@ -744,7 +743,8 @@ int8_t SlaveDeviceAutoAllocation(void)
 			 g_sIecSend.format.maddrM = 0x00;
 			 g_sIecSend.format.maddrH = 0x00;
 			 g_sIecSend.format.data[0] = 0x01;
-			 IecCreateFrameI(P_TABLE,1,R_TABLE_START,1,&g_sIecSend);// 发送启动导表到平台			
+			 IecCreateFrameI(P_TABLE,1,R_TABLE_START,1,&g_sIecSend);// 发送启动导表到平台
+			 gImport_Table_time = OSTimeGet();
 			 uDTAddr = 1;
 			 return SEARCH_END_IMPORT;					
 		 }
@@ -798,7 +798,9 @@ int8_t SlaveDeviceAutoAllocation(void)
 							}
 							else
 							{
-								g_DeviceEsn.uEsnMark[uTempAddr] = 1;
+								DEBUGOUT("\nFailed Allocation Addr is：%d\n",uRecBuffer[20]);
+//								g_DeviceEsn.uEsnMark[uTempAddr] = 1;
+								g_DeviceEsn.uEsnMark[uTempAddr] = 0;
 								memset(uAllocation.cDeviceEsn[uTempAddr],0,18);
 							}
 						}
@@ -1571,11 +1573,10 @@ int8_t SouthInquire(void)
 * 范    例:
 ******************************************************************************/
 static uint8_t SouthRecDealAlarm(void)
-{
+{   
     uint8_t  i;
     uint8_t  uRelNum = 0;
-    uint16_t uIecAddr;
-    uint16_t point = 0;   // 信息点
+//    uint16_t point = 0;   // 信息点
     Uint_Char_Convert   uCTemp;
     uint8_t uRelAddr;  // 设备相对地址
 
@@ -1609,7 +1610,7 @@ static uint8_t SouthRecDealAlarm(void)
         {
        
         case TYPE_GJ:  // 读告警点
-            point = sAlarmSouth.uPointHead;
+//            point = sAlarmSouth.uPointHead;
 			
             for(i = 0; i < uRecBuffer[2];)
             {
@@ -2844,7 +2845,6 @@ uint16_t SouthIecSd(uint16_t uIecSd,uint32_t uValue,uint16_t uSdCount,uint8_t uS
 uint8_t SouthWriteSD(void)
 {
     uint32_t uValue;       // 寄存器值
-    uint16_t uSdCount;
     uint16_t uIecSd = 0;      // IEC104表的设点地址点
 	uint8_t  uSdSum = 0;     //设点总数
     /*
@@ -2863,7 +2863,6 @@ uint8_t SouthWriteSD(void)
     {
     	uIecSd = IEC104_DATA_SD[2*k+1];
 		uValue = IEC104_DATA_SD[(k+1)*2];
-		uSdCount = uIecSd - 0x6201;
 //		DEBUGOUT("uValue:%d uIecSd：%X k = %d\r\n",uIecSd,uValue,k);
     	SouthIecSd(uIecSd,uValue,k+1,uSdSum);
     	msleep(5);
@@ -2887,217 +2886,138 @@ uint8_t SouthWriteSD(void)
 uint8_t SouthReadSD(void)
 {
     uint16_t uValue;       		// 寄存器值
-    uint16_t uValue_Count = 0;       		// 寄存器值
-    uint16_t PreuValue_Count = 0;       		// 寄存器值
-    uint16_t uSdCount;
+    uint16_t uSdCount = 0;
     uint16_t uIecSd = 0;      	// IEC104表的设点地址点
     uint16_t uModbusAddr = 0; 	// 遥控点对应的MODBUS寄存器地址
     uint16_t j,i;
-    uint16_t PreModbus_Addr = 0;
-	
-    uint8_t  uRelDevAddr;   	// 南向设备相对地址
-    uint8_t  uRelNum;       	// 设备相对点表号
+    uint8_t  uRelDevAddr = 0;   	// 南向设备相对地址
+    uint8_t  uRelNum,sRegist_Count = 0;       	// 设备相对点表号
     uint8_t  uSdPoint;      	// 设备的第几个设点点
-    int8_t   iResult;
-
-	uint8_t  uStartPoit=0;
-	uint8_t  uIntervalPoint=0;
-	uint16_t  uPoint;
-	Uint_Char_Convert  temp;
+	uint8_t  uIntervalPoint = 2;
 	U32_F_Char_Convert ctemp;
-	uint8_t uRegSum = 0;
-	uint8_t PreRegSum = 0;
-
+	uint32_t uValue_Temp = 0;       		// 寄存器值
+	DEBUGOUT("YT ACQUIRY TASK!!! \r\n");
 	/* 如,设备1的遥控起始地址为0x6004,平台下发的遥控点为0x6007
     *	则为设备1的第4个遥控点
     */
     if(NULL == IEC104_DATA_SD)
     {
+    	DEBUGOUT("无遥调空间 \r\n");
         return 0;
     }
 
 	uValue = IEC104_DATA_SD[0];				//查询的遥调点总数
-	uIecSd = IEC104_DATA_SD[1] + 0x6201;	//查询的104地址
+	uIecSd = IEC104_DATA_SD[1];	//查询的104地址
 
-    if(uIecSd)
-    {
-        for(uRelDevAddr = 0; uRelDevAddr < MAX_device; uRelDevAddr++)	//遍历设备
-        {
-            uRelNum = g_DeviceSouth.device_inf[uRelDevAddr].rel_num;	//设备的相对点表号
+//	DEBUGOUT("uIecSd = 0x%d  uValue = %d!!!\r\n",uIecSd,uValue);
+	if(uIecSd < 0x6201)
+		return 0;
 
-            if((g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr <= uIecSd) 
-				&& (uIecSd < (g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr + (g_DeviceSouth.sd_sum/g_DeviceSouth.device_sum))))
-            {
-                uSdPoint = uIecSd - g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr + 1;
-                break;
-            }
-        }
+	/*********************根据平台地址获取所需的遥调地址***********************/
+	memset(IEC104_DATA_SD,0,sizeof(IEC104_DATA_SD));
+	uValue = uIecSd+uValue;
+	for(;uIecSd < uValue;uIecSd++)
+	{
+		for(;uRelDevAddr < MAX_device; uRelDevAddr++)	//遍历设备
+		{
+			uRelNum = g_DeviceSouth.device_inf[uRelDevAddr].rel_num;	//设备的相对点表号
+			if(g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr != 0)
+			{
+				if((g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr <= uIecSd)
+					&& (uIecSd < (g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr + g_sIecPointCount[uRelNum].uSdSum)))
+				{
+//					printf("/**** Pinnet END g_sIecPointCount[%d].uSdSum = %d\r\n",uRelNum,g_sIecPointCount[uRelNum].uSdSum);
+					uSdPoint = uIecSd - g_DeviceSouth.device_inf[uRelDevAddr].sd_start_addr + 1;
+					break;
+				}
+			}
+		}
 
-        if(uRelDevAddr < MAX_device) 		//有搜索到设备
+		if(uRelDevAddr < MAX_device) 		//有搜索到设备
         {
             for(j = 0; j < g_DeviceSouth.protocol[uRelNum].mess_point_sum; j++)	//搜索MODBUS地址
             {
 				if(TYPE_SD == g_pRegPoint[uRelNum][j].reg_type.type.mess)
-                {  
+                {
 					uSdPoint--;
 					if(0 == uSdPoint)
                     {
                         uModbusAddr = g_pRegPoint[uRelNum][j].reg_addr;
-                        PreModbus_Addr = g_pRegPoint[uRelNum][j].reg_addr;
-						uPoint = j;
-						uSdCount = 0;
-						memset(uRecBuffer,0,256);
-						for(uint8_t i=0;i<uValue;i++)
-						{
-							if(1==g_pRegPoint[uRelNum][j].reg_count)
-							{
-								uRegSum += 1;
-								j += 1;
-								uValue_Count += 1;
-								if(g_pRegPoint[uRelNum][j].reg_addr != (PreModbus_Addr + 1))
-								{
-									uIntervalPoint = 0;
-									memset(uRecBuffer,0,256);
-									iResult = ComMasterRead(&g_sMaster,g_DeviceSouth.device_inf[uRelDevAddr].addr,03,uModbusAddr,(uRegSum - PreRegSum),uRecBuffer,NULL);
-									if(iResult < 0)
-									{
-										DEBUGOUT("读取设点失败%d",g_DeviceSouth.device_inf[uRelDevAddr].addr);
-										IEC104_DATA_SD[uSdCount] = 0x00;
-									}
-									else
-									{
-										for(uint8_t i = 0;i < uValue_Count - PreuValue_Count;i++)
-										{
-											if(1==g_pRegPoint[uRelNum][uPoint].reg_count)
-											{
-												temp.c[0]=uRecBuffer[4+i*2+uIntervalPoint*2];
-												temp.c[1]=uRecBuffer[3+i*2+uIntervalPoint*2];
-												IEC104_DATA_SD[uSdCount] = temp.u;
-//												DEBUGOUT("\n寄存器地址：%d 数据长度1 - 数据为：%X\n",g_pRegPoint[uRelNum][uPoint].reg_addr,IEC104_DATA_SD[uSdCount]);
-												uStartPoit = 4+i*2+uIntervalPoint*2;
-												uPoint += 1;
-												uSdCount += 1;
-											}
-											else if(2==g_pRegPoint[uRelNum][uPoint].reg_count)
-											{
-												ctemp.c[0]=uRecBuffer[uStartPoit+4];
-												ctemp.c[1]=uRecBuffer[uStartPoit+3];
-												ctemp.c[2]=uRecBuffer[uStartPoit+2];
-												ctemp.c[3]=uRecBuffer[uStartPoit+1];
-												uIntervalPoint++;
-												IEC104_DATA_SD[uSdCount] = ctemp.u;
-//												DEBUGOUT("\n寄存器地址：%d 数据长度2 - 数据为：%X\n",g_pRegPoint[uRelNum][uPoint].reg_addr,IEC104_DATA_SD[uSdCount]);
-												uStartPoit=uStartPoit+4;
-												uPoint += 1;
-												uSdCount += 1;
-											}
-										}
-									}
-									PreRegSum = uRegSum;
-									uModbusAddr = g_pRegPoint[uRelNum][j].reg_addr;
-									PreuValue_Count = uValue_Count;
-								}
-								PreModbus_Addr = g_pRegPoint[uRelNum][j].reg_addr;
-							}
-							else if(2==g_pRegPoint[uRelNum][j].reg_count)
-							{
-								uRegSum += 2;
-								j += 1;
-								uValue_Count += 1;
-								if(g_pRegPoint[uRelNum][j].reg_addr != (PreModbus_Addr + 2))
-								{
-									uIntervalPoint = 0;
-									memset(uRecBuffer,0,256);
-									iResult = ComMasterRead(&g_sMaster,g_DeviceSouth.device_inf[uRelDevAddr].addr,03,uModbusAddr,(uRegSum-PreRegSum-1),uRecBuffer,NULL);
-									if(iResult < 0)
-									{
-										DEBUGOUT("2读取设点失败%d",g_DeviceSouth.device_inf[uRelDevAddr].addr);
-										IEC104_DATA_SD[uSdCount] = 0x00;
-									}
-									else
-									{
-										for(uint8_t i = 0;i < uValue_Count - PreuValue_Count -1 ;i++)
-										{
-											if(1==g_pRegPoint[uRelNum][uPoint].reg_count)
-											{
-												temp.c[0]=uRecBuffer[4+i*2+uIntervalPoint*2];
-												temp.c[1]=uRecBuffer[3+i*2+uIntervalPoint*2];
-												IEC104_DATA_SD[uSdCount] = temp.u;
-
-												uStartPoit = 4+i*2+uIntervalPoint*2;
-												uPoint += 1;
-												uSdCount += 1;
-											}
-											else if(2==g_pRegPoint[uRelNum][uPoint].reg_count)
-											{
-												ctemp.c[0]=uRecBuffer[uStartPoit+4];
-												ctemp.c[1]=uRecBuffer[uStartPoit+3];
-												ctemp.c[2]=uRecBuffer[uStartPoit+2];
-												ctemp.c[3]=uRecBuffer[uStartPoit+1];
-												uIntervalPoint++;
-
-												IEC104_DATA_SD[uSdCount] = ctemp.u;
-												uStartPoit=uStartPoit+4;
-												uPoint += 1;
-												uSdCount += 1;
-											}
-										}
-									}
-									PreRegSum = uRegSum;
-									uModbusAddr = g_pRegPoint[uRelNum][j].reg_addr;
-									PreuValue_Count = uValue_Count;
-								}
-								PreModbus_Addr = g_pRegPoint[uRelNum][j].reg_addr;
-							}
-						}	
-                        break;
+                        IEC104_DATA_SD[uSdCount] = (g_pRegPoint[uRelNum][j].reg_count == 1)?uModbusAddr:(uModbusAddr|(1<<16));
+//                        printf("IEC104_DATA_SD[%d] = 0x%08X\r\n",uSdCount,IEC104_DATA_SD[uSdCount]);
+                        uSdCount++;
                     }
                 }
             }
         }
-    }
+	}
 
-    if(uModbusAddr)
-    {
-        memset(uRecBuffer,0,256);
-		iResult = ComMasterRead(&g_sMaster,g_DeviceSouth.device_inf[uRelDevAddr].addr,03,uModbusAddr,uRegSum-PreRegSum+1,uRecBuffer,NULL);
-		uIntervalPoint = 0;
-        if(iResult < 0)
-        {
-            DEBUGOUT("读取设点失败%d",g_DeviceSouth.device_inf[uRelDevAddr].addr);
-			IEC104_DATA_SD[uSdCount] = 0x00;
-        }
-		else
-        {
-            for(uint8_t i = 0;i < uValue - PreuValue_Count;i++)
-            {
-				if(1==g_pRegPoint[uRelNum][uPoint].reg_count)
+	/*********************************冒泡*************************************/
+	if(0 != uSdCount)
+	{
+		for (j = 0; j < uSdCount - 1; j++)
+		{
+			for (i = 0; i < uSdCount - 1 - j; i++)
+			{
+				if(((IEC104_DATA_SD[i])<<16) > ((IEC104_DATA_SD[i+1])<<16))
 				{
-					temp.c[0]=uRecBuffer[4+i*2+uIntervalPoint*2];
-				    temp.c[1]=uRecBuffer[3+i*2+uIntervalPoint*2];
-					IEC104_DATA_SD[uSdCount] = temp.u;
-//					DEBUGOUT("\n寄存器地址：%d 数据长度1 - 数据为：%X\n",g_pRegPoint[uRelNum][uPoint].reg_addr,IEC104_DATA_SD[uSdCount]);
-					uStartPoit = 4+i*2+uIntervalPoint*2;
-					uPoint += 1;
-					uSdCount += 1;
-				}
-				else if(2==g_pRegPoint[uRelNum][uPoint].reg_count)
-				{
-					ctemp.c[0]=uRecBuffer[uStartPoit+4];
-				    ctemp.c[1]=uRecBuffer[uStartPoit+3];
-					ctemp.c[2]=uRecBuffer[uStartPoit+2];
-				    ctemp.c[3]=uRecBuffer[uStartPoit+1];
-					uIntervalPoint++;
-					IEC104_DATA_SD[uSdCount] = ctemp.u;
-//					DEBUGOUT("\n寄存器地址：%d 数据长度2 - 数据为：%X\n",g_pRegPoint[uRelNum][uPoint].reg_addr,IEC104_DATA_SD[uSdCount]);
-					uStartPoit=uStartPoit+4;
-					uPoint += 1;
-					uSdCount += 1;
+					memcpy(&uValue_Temp,&IEC104_DATA_SD[i],sizeof(uValue_Temp));
+					memcpy(&IEC104_DATA_SD[i],&IEC104_DATA_SD[i+1],sizeof(uValue_Temp));
+					memcpy(&IEC104_DATA_SD[i+1],&uValue_Temp,sizeof(uValue_Temp));
 				}
 			}
 		}
-        return 0;
-    }
+	}
+	else
+	{
+		DEBUGOUT("Not YT Point!!!\r\n");
+		return 0;
+	}
+
+	/******************************分段查询************************************/
+	uValue = 0;
+	for(i = 1; i < (uSdCount+1); i++)
+	{
+		uValue++;
+		sRegist_Count += (((IEC104_DATA_SD[i-1])>>16)+1);
+		if((((IEC104_DATA_SD[i])<<16)>>16) != ((((IEC104_DATA_SD[i-1])<<16)>>16) + (((IEC104_DATA_SD[i-1])>>16)+1)))
+		{
+//			printf("addr = %d\r\n",(i - uValue));
+			memset(uRecBuffer,0,256);
+			if(ComMasterRead(&g_sMaster,g_DeviceSouth.device_inf[uRelDevAddr].addr,03,IEC104_DATA_SD[i - uValue],sRegist_Count,uRecBuffer,NULL) > 0)
+			{
+				for(j = (i - uValue);j < i;j++)
+				{
+					uint8_t k = 0;
+					if(0 == ((IEC104_DATA_SD[j])>>16))
+					{
+	//					DEBUGOUT("\r\n寄存器地址：%d  ",((IEC104_DATA_SD[j])<<16)>>16);
+						for(k = 0;k < 2;k++)
+						{
+							ctemp.c[k] = uRecBuffer[uIntervalPoint + (2-k)];
+							IEC104_DATA_SD[j] = ctemp.u16;
+						}
+						uIntervalPoint += 2;
+	//					DEBUGOUT("数据长度1 - 数据为：%X\r\n",IEC104_DATA_SD[j]);
+					}
+					else if(1 == ((IEC104_DATA_SD[j])>>16))
+					{
+	//					DEBUGOUT("\r\n寄存器地址：%d  ",((IEC104_DATA_SD[j])<<16)>>16);
+						for(k = 0;k < 4;k++)
+						{
+							ctemp.c[k] = uRecBuffer[uIntervalPoint + (4-k)];
+							IEC104_DATA_SD[j] = ctemp.u;
+						}
+						uIntervalPoint += 4;
+	//					DEBUGOUT("数据长度2 - 数据为：%X\r\n",IEC104_DATA_SD[j]);
+					}
+				}
+			}
+			uValue = 0;
+			sRegist_Count = 0;
+			uIntervalPoint = 2;
+		}
+	}
     return 0;
 }
 /******************************************************************************

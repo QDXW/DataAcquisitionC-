@@ -67,7 +67,6 @@ int main(void)
     PrintThisInfo();   // 打印基本信息
     OSInit();    // init uc/os-ii
     SysMesInit();   // 系统信号初始化
-
     OSTaskCreateExt (TaskModemProcess,                                      // 建立扩展任务(任务代码指针)
                         (void *)0,                                          // 传递参数指针
                         &TaskModemProcessStk[TaskModemProcessStkSize-1],    // 分配任务堆栈栈顶指针
@@ -89,7 +88,7 @@ int main(void)
                         OS_TASK_OPT_STK_CHK+OS_TASK_OPT_STK_CLR);           // 建立任务设定选项
 
     OSTaskCreateExt (TaskSouthInquire,                                      // 建立扩展任务(任务代码指针)
-                        (void *)0,                                          // 传递参数指针
+                        (void *)0,                                          // 传递参数指针           无遥测空间
                         &TaskSouthInquireStk[TaskSouthInquireStkSize-1],    // 分配任务堆栈栈顶指针
                         6,                                                  // 分配任务优先级
                         6,                                                  // (未来的)优先级标识(与优先级相同)
