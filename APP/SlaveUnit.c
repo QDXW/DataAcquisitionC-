@@ -1065,7 +1065,6 @@ static uint8_t SouthRecDeal(void)
                 }
                 if(uIecAddr>(g_DeviceSouth.yx_sum-1))    // 遥信数据下标超过遥信总数
                 {
-                    DEBUGOUT("uIecAddr=%d yx_sum=%d",uIecAddr,g_DeviceSouth.yx_sum);
                     break;
                 }
                 if(uYxTemp != IEC104_DATA_YX[uIecAddr])
@@ -1166,13 +1165,22 @@ static uint8_t SouthRecDeal(void)
                     DEBUGOUT("uIecAddr=%d yc_sum=%d",uIecAddr,g_DeviceSouth.yc_sum);
                     break;
                 }
-                if(IEC104_DATA_YC[uIecAddr] != uYcU.u)//
-                {
-                    IEC104_DATA_YC[uIecAddr] = uYcU.u;//yc_temp.f;//
+				if(DataFlash_Read((DATAFLASH_DT1000_YCDATA + uIecAddr*4),(uint8_t*)IEC104_DATA_YC,4))
+				{
+					if(IEC104_DATA_YC[0] != uYcU.u)
+					{
+						IEC104_DATA_YC[0] = uYcU.u;			//yc_temp.f;
+						DataFlash_Write((DATAFLASH_DT1000_YCDATA + uIecAddr*4),(uint8_t*)IEC104_DATA_YC,4);
 
-                    YcReport(g_pRegPoint[uRelNum][point].reg_type.type.data,uIecAddr,uYcU.u,1); // 突发遥测数据
-                }
-
+						YcReport(g_pRegPoint[uRelNum][point].reg_type.type.data,uIecAddr,uYcU.u,1); // 突发遥测数据
+					}
+				}
+//                if(IEC104_DATA_YC[uIecAddr] != uYcU.u)//
+//                {
+//                    IEC104_DATA_YC[uIecAddr] = uYcU.u;//yc_temp.f;//
+//
+//                    YcReport(g_pRegPoint[uRelNum][point].reg_type.type.data,uIecAddr,uYcU.u,1); // 突发遥测数据
+//                }
                 uIecAddr++;
                 point++;
             }
@@ -1361,7 +1369,6 @@ int8_t SouthInquire(void)
             return SOUTH_WORK;
         }
 
-
         uRelativePointNum = g_DeviceSouth.device_inf[uRelativeAddr].rel_num;  // 相对点表号
 
         if((g_pRegPoint[uRelativePointNum] != NULL) && (g_DeviceSouth.device_inf[uRelativeAddr].protocol_num == g_DeviceSouth.protocol[uRelativePointNum].protocol_num)) // 指向点表数组的指针
@@ -1371,11 +1378,9 @@ int8_t SouthInquire(void)
 
             sCom.uRegCount = 0;  // 寄存器数量初始化为0；
 
-
             for(; sSouth.uPointCount < uMessPointSum; sSouth.uPointCount++)
             {
                 sSouth.uType = g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_type.type.mess;
-
                 if(TYPE_YX == sSouth.uType)//YX:0x02  YC:0x01  YK:0x04  SD:0x05   DD:0x03
                 {
                     sCom.uRegAddr = g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_addr;  // 寄存器地址
@@ -1483,7 +1488,6 @@ int8_t SouthInquire(void)
         {
             uNextDev = 1;
         }
-
 
         if(sCom.uRegCount > 0)
         {
@@ -2327,7 +2331,7 @@ void TaskSouthInquire(void *p)
 	uint16_t uFrameCount = 0;
 	uint16_t uRecFrame;  				//从平台接收确认帧
     uint8_t TimeCount=0;
-
+    uint16_t SaveYCCount = 0,TestCount = 0;
     pUartLock = OSMutexCreate(4,&err);	// 锁初始化
 
     // 主站结构体初始化
@@ -2570,7 +2574,28 @@ void TaskSouthInquire(void *p)
 							Reboot();
 						}
 						DEBUGOUT("YCSum = %d   YXSum = %d !!!\r\n",g_DeviceSouth.yc_sum,g_DeviceSouth.yx_sum);
-						RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,g_DeviceSouth.yc_sum);// 保存数据
+						for(SaveYCCount = 0;SaveYCCount < 3800;)
+						{
+							if(!g_DeviceSouth.yc_sum)
+								break;
+							SaveYCCount += 512;
+							if(SaveYCCount > g_DeviceSouth.yc_sum)
+							{
+								TestCount = DataFlash_Read((DATAFLASH_DT1000_YCDATA + (SaveYCCount - 512)*4),(uint8_t*)IEC104_DATA_YC,(g_DeviceSouth.yc_sum - (SaveYCCount -512))*4);
+								printf("Read YC information Bty:%d!!!",TestCount);
+								RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,(g_DeviceSouth.yc_sum - (SaveYCCount -512)));// 保存数据
+								break;
+							}
+							else
+							{
+								TestCount = DataFlash_Read((DATAFLASH_DT1000_YCDATA + (SaveYCCount - 512)*4),(uint8_t*)IEC104_DATA_YC,2048);
+								printf("Read YC information Bty:%d!!!",TestCount);
+								RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,512);// 保存数据
+							}
+//							RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,g_DeviceSouth.yc_sum);// 保存数据
+						}
+						printf("SouthRecDeal end!!!\r\n");
+
 						//OSMutexPost(pRecordLock);   //释放信号量
 					}
 				}
@@ -3578,6 +3603,7 @@ void ResetIecData(uint8_t uRelAddr)
     uint16_t yc_sum=0;   // 遥测点数统计
     uint16_t yx_sum=0;   // 遥信点数统计
     uint8_t  rel_num;
+    uint16_t YCCount=0;   // 遥测点数统计
 
 
     rel_num = g_DeviceSouth.device_inf[uRelAddr].rel_num;  // 相对点表号
@@ -3612,10 +3638,16 @@ void ResetIecData(uint8_t uRelAddr)
         iec_addr = g_DeviceSouth.device_inf[uRelAddr].yc_start_addr - 0x4001; // 找出遥测起始地址
         count  = iec_addr;           // 地址偏移，得出第一个点对应的iec104数组表下标
         yc_sum = yc_sum + iec_addr;  // 加上地址偏移，得出最后一个点对应的iec104数组表下标
-        for(; count<yc_sum && NULL!=IEC104_DATA_YC; count++)
-        {
-            IEC104_DATA_YC[count] = 0xffffffff;
-        }
+//        for(; count<yc_sum && NULL!=IEC104_DATA_YC; count++)
+//        {
+//            IEC104_DATA_YC[count] = 0xffffffff;
+//        }
+        for(YCCount=0;YCCount<512 && NULL!=IEC104_DATA_YC; YCCount++)
+		{
+			IEC104_DATA_YC[YCCount] = 0xffffffff;
+		}
+
+		DataFlash_Write((DATAFLASH_DT1000_YCDATA  + iec_addr*4),(uint8_t*)IEC104_DATA_YC,(yc_sum - iec_addr)*4);
     }
 }
 /******************************************************************************

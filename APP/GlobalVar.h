@@ -54,7 +54,8 @@
 #define  DATAFLASH_LOG_THREE          0x01E000     // 南向日志第一天存放起始地址
 #define  DATAFLASH_LOG_END            0x020000     // 南向日志存放的结束地址
 #define  DATAFLASH_LOGGER_INFO        0x022000     // 数采基本信息备份
-#define  DATAFLASH_DT1000_LOG         0x023000     //存放表计日志
+//#define  DATAFLASH_DT1000_LOG         0x023000     //存放表计日志
+#define  DATAFLASH_DT1000_YCDATA      0x023000     //存放遥测的数据
 #define  DATAFLASH_DT1000_UPDATA_HEAD 0x050000     //表计升级程序存放在falsh的起始地址占用128KB，到0x070000为A面,0x070000到0x090000为B面
 #define  DATAFLASH_RECORD_HEAD        0x11A000     // 0x01E000历史数据存放在DataFlash的起始地址
 #define  DATAFLASH_RECORD_END         0x7FFFFF     // 历史数据存放在DataFlash的结束地址

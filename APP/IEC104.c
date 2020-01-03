@@ -175,13 +175,16 @@ void IecInit(void)
 
     if(g_DeviceSouth.yc_sum>0)       // 申请遥测数据内存空间
     {
-        IEC104_DATA_YC = (uint32_t*)WMemMalloc(IEC104_DATA_YC,g_DeviceSouth.yc_sum*sizeof(uint32_t));
+//        IEC104_DATA_YC = (uint32_t*)WMemMalloc(IEC104_DATA_YC,g_DeviceSouth.yc_sum*sizeof(uint32_t));
+        IEC104_DATA_YC = (uint32_t*)WMemMalloc(IEC104_DATA_YC,(512*sizeof(uint32_t)));
         if(NULL==IEC104_DATA_YC)
         {
             DEBUGOUT("要遥测空间失败\n");
             return;
         }
-        for(i=0;i<g_DeviceSouth.yc_sum;i++)
+
+//        for(i=0;i<g_DeviceSouth.yc_sum;i++)
+		for(i=0;i<512;i++)
         {
             IEC104_DATA_YC[i] = 0xFFFFFFFF;
         }
@@ -3241,7 +3244,7 @@ void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
         {
 
             DEBUGOUT("无遥测空间\n");
-			
+
             if(g_DeviceSouth.yc_sum)  // 如果遥测点总数为0，则不报信息
             {
                 DEBUGOUT("无遥测点\n");
@@ -3290,23 +3293,21 @@ void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
         {
             temp = qty*5;
 
-
-//            DEBUGOUT("*************************** 总召置位判断前 **********************************\n");
-            //***********************************极大值置位全F值************            
-            if(((0x4F800000==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT32)) ||
-            ((0x477FFF00==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT16)))
-            {
-
-  //          DEBUGOUT("**************************** 总召置位判断后 **************************************\n");
+            DataFlash_Read((DATAFLASH_DT1000_YCDATA + uIecCount*4),(uint8_t*)IEC104_DATA_YC,4);
+//            if(((0x4F800000==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT32)) ||
+//            ((0x477FFF00==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT16)))
+			if(((0x4F800000==IEC104_DATA_YC[0])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT32)) ||
+					((0x477FFF00==IEC104_DATA_YC[0])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT16)))
+			{
                 pA->send.format.data[temp]   = 0xFF;
                 pA->send.format.data[temp+1] = 0xFF;
                 pA->send.format.data[temp+2] = 0xFF;
                 pA->send.format.data[temp+3] = 0xFF;
-                
+
             }
             else
             {
-                yctemp.u = IEC104_DATA_YC[uIecCount];
+                yctemp.u = IEC104_DATA_YC[0];
                 pA->send.format.data[temp]   = yctemp.c[0];
                 pA->send.format.data[temp+1] = yctemp.c[1];
                 pA->send.format.data[temp+2] = yctemp.c[2];

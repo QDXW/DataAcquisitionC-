@@ -25,7 +25,7 @@ CD：软件大版本，00-FF
 EF：软件小版本，00-FF
 */
 // 数采版本：
-#define G_VER_TYPE  0xC3    // 测试版 + 数采B版本
+#define G_VER_TYPE  0xE3    // 测试版 + 数采B版本
 #define G_VER_S1    0x10    // 软件大版本
 #define G_VER_S2    0x2E   // 软件小版本  小版本号最低位   最低位1:在A面；0:在B面
 #define G_VER_S3    0x0001  // 软件内部版本
