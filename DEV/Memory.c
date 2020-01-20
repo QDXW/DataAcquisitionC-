@@ -8,7 +8,7 @@
 //#define NULL ((void *) 0)
 
 #define MEM_BLOCK_SIZE          32                             // 内存块大小
-#define MAX_MEM_SIZE            17600                          // 堆内存大小 17KB
+#define MAX_MEM_SIZE            17408                          // 堆内存大小 17KB
 #define MEM_ALLOC_TABLE_SIZE    (MAX_MEM_SIZE/MEM_BLOCK_SIZE)  // 内存表大小
 static char memory_map[MEM_ALLOC_TABLE_SIZE]={0};   //内存表
 static unsigned char memory_heap[MAX_MEM_SIZE];     //堆内存

@@ -175,25 +175,23 @@ void IecInit(void)
 
     if(g_DeviceSouth.yc_sum>0)       // 申请遥测数据内存空间
     {
-//        IEC104_DATA_YC = (uint32_t*)WMemMalloc(IEC104_DATA_YC,g_DeviceSouth.yc_sum*sizeof(uint32_t));
-        IEC104_DATA_YC = (uint32_t*)WMemMalloc(IEC104_DATA_YC,(512*sizeof(uint32_t)));
+        IEC104_DATA_YC = (uint32_t*)WMemMalloc(IEC104_DATA_YC,g_DeviceSouth.yc_sum*sizeof(uint32_t));
         if(NULL==IEC104_DATA_YC)
         {
             DEBUGOUT("要遥测空间失败\n");
             return;
         }
-
-//        for(i=0;i<g_DeviceSouth.yc_sum;i++)
-		for(i=0;i<512;i++)
+        for(i=0;i<g_DeviceSouth.yc_sum;i++)
         {
             IEC104_DATA_YC[i] = 0xFFFFFFFF;
         }
+        DEBUGOUT("Application YC Space Success!!!\r\n");
     }
     else
     {
+    	DEBUGOUT("Not YC Point!!!\r\n");
         IEC104_DATA_YC = NULL;
     }
-
 
     if(g_DeviceSouth.yk_sum>0)       // 申请遥控数据内存空间
     {
@@ -1060,10 +1058,10 @@ void Iec104SouthDevInfo(IEC104_MAIN_T *pA)
 {
     uint8_t uRec,i;
 
-    if(NULL != pRegPointTemp)
-	{
-		pRegPointTemp = WMemFree(pRegPointTemp); 	  	//释放空间
-	}
+//    if(NULL != pRegPointTemp)
+//	{
+//		pRegPointTemp = WMemFree(pRegPointTemp); 	  	//释放空间
+//	}
 	Data_resend_count = 0;
 
     if(R_SETTING==pA->recv.format.reasonL)// 传输原因-设置0x92
@@ -2725,8 +2723,8 @@ void Iec104SD(IEC104_MAIN_T *pA)
 	U32_F_Char_Convert  ctemp;
 	uint8_t SdSum;
 
-    if(R_SETTING==pA->recv.format.reasonL) // 激活06
-    {
+	if(R_SETTING==pA->recv.format.reasonL) // 激活06
+	{
 		SdSum = pA->recv.format.limit & 0x7f;
 		SdContinuousAddr=0;    //遥调的非连续地址
 		temp.c[0] = pA->recv.format.maddrL;
@@ -2736,11 +2734,16 @@ void Iec104SD(IEC104_MAIN_T *pA)
 
 		if(temp.u > 0x6400)
 		{
-			DEBUGOUT("非法遥调地址\n");
 			return;
 		}
+		temp.u = temp.u - 0x6201;  // 计算出相对遥控地址
+
+		if(temp.u >= g_DeviceSouth.sd_sum)
+		{
+			DEBUGOUT("非法遥调地址\n");
+		}
 		memcpy(ctemp.c,pA->recv.format.data,sizeof(ctemp.c));
-//		ctemp.u=ctemp.f;
+		ctemp.u=ctemp.f;
 		IEC104_DATA_SD[0] = SdSum;  // 遥调点数
 		IEC104_DATA_SD[1] = temp_104.u;  // 遥调地址
 		IEC104_DATA_SD[2] = ctemp.u;  	// 遥调点值
@@ -2758,7 +2761,7 @@ void Iec104SD(IEC104_MAIN_T *pA)
 			}
 			temp.u = temp.u - 0x6201;  // 计算出相对遥调地址
 			memcpy(ctemp.c,&pA->recv.format.data[i*7],sizeof(ctemp.c));
-//			ctemp.u=ctemp.f;
+			ctemp.u=ctemp.f;
 			
 			IEC104_DATA_SD[i*2+1] = temp_104.u;  	// 遥调地址
 			IEC104_DATA_SD[(i+1)*2] = ctemp.u;  	// 遥调点值
@@ -2766,10 +2769,10 @@ void Iec104SD(IEC104_MAIN_T *pA)
 		OSQPost(MesQ, &s_uSouthSd);
 
 		sleep(SdSum/2);
-        IecCpoyMesAddr(pA);
+		IecCpoyMesAddr(pA);
 		memcpy(pA->send.format.data,pA->recv.format.data,(pA->recv.format.len-10));// I帧数据
-        IecCreateFrameI(p_SD,pA->recv.format.limit,R_SET_SUC,7*SdSum-3,&pA->send);
-    }
+		IecCreateFrameI(p_SD,pA->recv.format.limit,R_SET_SUC,7*SdSum-3,&pA->send);
+	}
     else if(R_INQUIRE==pA->recv.format.reasonL) // 停止激活08
    {
 		if(pA->recv.format.limit & 0x80)	 //遥调的连续地址
@@ -2787,7 +2790,7 @@ void Iec104SD(IEC104_MAIN_T *pA)
 			 IEC104_DATA_SD[0] = SdSum;		// 查询的遥调点个数
 			 IEC104_DATA_SD[1] = temp.u;	// 查询的第几个遥调点
 			 OSQPost(MesQ, &s_uSouthReadSd);
-			 sleep(2);
+			 sleep(5);
 			 for(uint8_t i=0;i<SdSum;i++)
 			 {
 				ctemp.u=IEC104_DATA_SD[i];
@@ -3086,7 +3089,9 @@ void TaskIec104Process(void *p)
 ******************************************************************************/
 void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
 {
-    static uint16_t s_uIecHead; // 要发送数据的头
+//	static uint16_t s_uIecHead,uPointCount = 0; // 要发送数据的头
+//	static uint8_t Record_RelAddr;
+	static uint16_t s_uIecHead; // 要发送数据的头
     uint16_t uIecCount;         // 信息点数量
     uint16_t uCollectSum;       //
     uint8_t qty=0;              // 一帧IEC I帧包含总召点数计数
@@ -3181,13 +3186,9 @@ void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
             }
         }
 
-
-        //----------------------------------------------------------------
-
         uRelTable = g_DeviceSouth.device_inf[call->uRelAddr].rel_num; // 相对点表号
 
         //addr.u = s_uIecHead+0x01;  // 信息体地址
-
         //pA->send.format.maddrL = addr.c[0];// 信息体地址
         //pA->send.format.maddrM = addr.c[1];
         //pA->send.format.maddrH = 0x00;
@@ -3244,7 +3245,7 @@ void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
         {
 
             DEBUGOUT("无遥测空间\n");
-
+			
             if(g_DeviceSouth.yc_sum)  // 如果遥测点总数为0，则不报信息
             {
                 DEBUGOUT("无遥测点\n");
@@ -3288,26 +3289,31 @@ void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
         pA->send.format.maddrH = 0x00;
 
         uCollectSum = g_DeviceSouth.device_inf[call->uRelAddr].yc_start_addr - 0x4001 + g_sIecPointCount[uRelTable].uYcSum;
+//        if(Record_RelAddr != call->uRelAddr)
+//		{
+//			Record_RelAddr = call->uRelAddr;
+//			uPointCount = 0;
+//		}
 
         for(uIecCount=s_uIecHead,qty=0; uIecCount<uCollectSum && qty<48; uIecCount++)
         {
             temp = qty*5;
 
-            DataFlash_Read((DATAFLASH_DT1000_YCDATA + uIecCount*4),(uint8_t*)IEC104_DATA_YC,4);
-//            if(((0x4F800000==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT32)) ||
-//            ((0x477FFF00==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT16)))
-			if(((0x4F800000==IEC104_DATA_YC[0])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT32)) ||
-					((0x477FFF00==IEC104_DATA_YC[0])&&(g_pRegPoint[uRelTable][s_uIecHead].reg_type.type.data == T_UINT16)))
-			{
-                pA->send.format.data[temp]   = 0xFF;
-                pA->send.format.data[temp+1] = 0xFF;
-                pA->send.format.data[temp+2] = 0xFF;
-                pA->send.format.data[temp+3] = 0xFF;
-
-            }
-            else
+//            DEBUGOUT("*************************** 总召置位判断前 **********************************\n");
+            //***********************************极大值置位全F值************            
+//            if(((0x4F800000==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][uPointCount].reg_type.type.data == T_UINT32)) ||
+//            ((0x477FFF00==IEC104_DATA_YC[uIecCount])&&(g_pRegPoint[uRelTable][uPointCount].reg_type.type.data == T_UINT16)))
+//            {
+//  //          DEBUGOUT("**************************** 总召置位判断后 **************************************\n");
+//                pA->send.format.data[temp]   = 0xFF;
+//                pA->send.format.data[temp+1] = 0xFF;
+//                pA->send.format.data[temp+2] = 0xFF;
+//                pA->send.format.data[temp+3] = 0xFF;
+//
+//            }
+//            else
             {
-                yctemp.u = IEC104_DATA_YC[0];
+                yctemp.u = IEC104_DATA_YC[uIecCount];
                 pA->send.format.data[temp]   = yctemp.c[0];
                 pA->send.format.data[temp+1] = yctemp.c[1];
                 pA->send.format.data[temp+2] = yctemp.c[2];
@@ -3317,7 +3323,12 @@ void IecCollectProcess(IEC104_MAIN_T *pA,IEC_RUNNING_T *call)
             pA->send.format.data[temp+4] = 0x00; // 品质描述
 
             qty++;
-            s_uIecHead++;
+			s_uIecHead++;
+//			uPointCount++;
+//			if(uPointCount >= g_sIecPointCount[uRelTable].uYcSum)
+//			{
+//				uPointCount = 0;
+//			}
         }
 
         if(uIecCount >= uCollectSum)  // 一台遥测总召发送完成

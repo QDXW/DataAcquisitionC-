@@ -414,8 +414,10 @@ int16_t UartWrite(uint8_t uUartId,const void *data,uint16_t bytes)
     uint8_t *p8 = (uint8_t *) data;
     USART_t *pUsart;
 
-    if(3 == uUartId)
+    if((3 == uUartId) && (p8[1] == 0x03))
+    {
     	g_South_Action_Newtime = OSTimeGet();
+    }
 
     if(0!=uUartId)
     {
@@ -427,7 +429,7 @@ int16_t UartWrite(uint8_t uUartId,const void *data,uint16_t bytes)
 
         if(pUsart->IoSend != 0)
         {
-            (*(pUsart->IoSend))(); // 转入发送状态
+            (*(pUsart->IoSend))(); // 转入发送状态 uRegCount
             uDelay = 100;      //
             while(uDelay--);
         }

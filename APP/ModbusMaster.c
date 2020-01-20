@@ -730,10 +730,9 @@ int16_t ComMasterRead(MODBUS_MASTER_T *pMaster,uint8_t uAddr,uint8_t uCmd,uint16
 
             if(TimeGapJudge(uFrameSendTime,sNowTime,pMaster->uFailTimeOut))
 			{
-				msleep(20);				 
+				msleep(20);
 				continue;
 			}
-
             //if((pMaster->uPreFun == 0x03)?(uSendCount < 99):(uSendCount < pMaster->uRecLostMax))  
             // 重发次数小于最大次数，单帧超时未回复重发
             if(uSendCount < pMaster->uRecLostMax)  			// 重发次数小于最大次数，单帧超时未回复重发
@@ -939,7 +938,7 @@ int16_t ComMasterReadDiscovery(MODBUS_MASTER_T *pMaster,uint8_t uAddr,uint8_t uC
     UartWrite(pMaster->iComFd,uSendBuf,uLen);//write(pMaster->iComFd,uSendBuf,uLen);
     if(0x01&SouthSwich)
     {
-        DEBUGOUT("SOUTH_SEND:");
+        DEBUGOUT("SOUTH_SEND_DISCOVERY:");
         for(int i=0;i<uLen;i++)
         {
             DEBUGOUT("%02X ",uSendBuf[i]);
@@ -971,7 +970,7 @@ int16_t ComMasterReadDiscovery(MODBUS_MASTER_T *pMaster,uint8_t uAddr,uint8_t uC
 			CopyData(pRecData);
 			if(0x02&SouthSwich)
 			{
-				DEBUGOUT("SOUTH_RECV:");
+				DEBUGOUT("SOUTH_RECV_DISCOVERY:");
 				for(int i=0;i<iRecCount;i++)
 				{
 					DEBUGOUT("%02X ",pRecData[i]);

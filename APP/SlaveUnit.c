@@ -84,7 +84,6 @@ typedef struct
     //uint16_t  CRC;                     // 存储数据的CRC校验  
 }DEVICE_ADDR_INFO_T;*/
 
-
 // 表计升级包总字节数
 //typedef struct
 //{
@@ -93,26 +92,16 @@ typedef struct
 //} DT1000UPDATA_DATA_T;
 // 用于表计升级
 
-
 //====================================================================
 //static DT1000UPDATA_DATA_T g_DT1000DataLen;
-
 //static uint8_t  s_uSouthReadSd=SOUTH_CMD_READSD; //南向读设点
-
 static uint8_t uNewHWDevCount=0;      // 搜索华为设备时，搜索到设备数量计数
 //static uint8_t uSetNewDeviceAddr=1;
-
-
 static IEC_FORMAT_T    g_sIecSend;     // 用于IEC104组帧
 //static IEC104_MAIN_T   *g_sIecRec;     // 用于IEC104组帧
-
-
 static IEC104_BURST_T g_sBurst;       // 突发数据存储，信息点计数
-
 MODBUS_MASTER_T g_sMaster;            // 主站结构体
-
 static uint8_t  uRecBuffer[256];      // 接收缓存
-
 OS_EVENT *pUartLock;                   // 串口锁
 
 static DEVICE_INQUIRE_INFO_T sSouth;  // 查询信息记录
@@ -122,8 +111,6 @@ static uint8_t g_uAlarmReport;        // 告警状态
 static uint32_t g_uTimeNow;           // 当前的时间戳
 //static uint8_t  s_uNorthReadSd = NORTH_CMD_READSD; //南向读设点
 
-//===============================================================================
-//===============================================================================
 uint8_t SetBaudRate(uint8_t now,uint8_t target);
 void ResetIecData(uint8_t uRelAddr);
 void AlarmAddDev(uint8_t uRelAddr,uint8_t uSum,uint16_t uModAddr,uint16_t uValue);
@@ -132,9 +119,6 @@ uint8_t TimedReboot(uint8_t uRandom);
 uint8_t AlarmReport(uint8_t addr,uint8_t err_code,uint16_t reg_addr,uint8_t offset,uint8_t event,uint8_t imd);
 uint32_t g_South_Action_Newtime = 0,gImport_Table_time = 0;
 
-//===============================================================================
-//===============================================================================
-//===============================================================================
 /******************************************************************************
 * 名    称：SlaveAddrConvert()
 * 功    能：根据通许地址，找出对应的数组下标（相对地址）。
@@ -697,22 +681,28 @@ int8_t SlaveDeviceAutoAllocation(void)
 	{ 
 		 for(uint8_t uAddr=1;uAddr<MAX_device+1;)
 		 {
+			 msleep(1500);
 		     memset(uRecBuffer,0,256);
 			 iDiscoveryResult[uAddr] = ComMasterRead(&g_sMaster,uAddr,DISCOVERY_REPORT,0,0,uRecBuffer,NULL);
+
+			 if(gImport_Table_time)
+				 gImport_Table_time = OSTimeGet();
 			 if((iDiscoveryResult[uAddr] > 0) && (uRecBuffer[0] == uAddr) && (uRecBuffer[1] == DISCOVERY_REPORT) && (uRecBuffer[2] == 0x45))
 		     {
 				  if(RUNNING_WORK_READ == g_LoggerRun.run_status)
                   {
-					 if(SouthDeviceCheck(uAddr))  //在进行3B轮询的时候，已上报设备地址的只接收设备信息不上报
+					  gImport_Table_time = 0;
+					 if(SouthDeviceCheck(uAddr))  //在进行3B轮询的时候，已上报设备地址的只接收设备信息不上报       2B
 					 {
 						 DEBUGOUT("[Working Discovery]%d: %s\n",uRecBuffer[0],&uRecBuffer[11]);
 					     HwDeviceNew(uRecBuffer[0],uRecBuffer);
 						 g_DeviceEsn.uEsnMark[uAddr] = 1;
+						 gImport_Table_time = OSTimeGet();
 					 }
+
 				  }
 				  else if(RUNNING_SEARCH_HW == g_LoggerRun.run_status)// 新数采搜索华为设备
 				  {
-					  gImport_Table_time = OSTimeGet();
 					  DEBUGOUT("[Empty Device Discovery]%d: %s\n",uRecBuffer[0],&uRecBuffer[11]);
 					  g_DeviceEsn.uEsnMark[uAddr] = 1;
 					  HwDeviceNew(uRecBuffer[0],uRecBuffer);
@@ -727,7 +717,6 @@ int8_t SlaveDeviceAutoAllocation(void)
 
 		 if(uNewHWDevCount) // 有搜索到华为设备
 		 {
-			 gImport_Table_time = OSTimeGet();
 //			 DEBUGOUT("/**********Pinnet Report Have Device!!!\r\n");
 			 HwDeviceReport(2,uRecBuffer);  // 上报可能暂存的数据
 			 uNewHWDevCount = 0;
@@ -790,11 +779,13 @@ int8_t SlaveDeviceAutoAllocation(void)
 						{
 							memset(uRecBuffer,0,256);
 							iAssignResult[uTempAddr] = ComMasterRead(&g_sMaster,0xD5,DISCOVERY_SET_ADDR,0,0,uRecBuffer,(uint8_t *)uAllocation.cDeviceEsn[uTempAddr]);
+							gImport_Table_time = 0;
 							if((iAssignResult[uTempAddr] > 0) && (uRecBuffer[1] == DISCOVERY_SET_ADDR) && (uRecBuffer[20] == uTempAddr) && (uRecBuffer[2] == 0x12))
 							{
 								DEBUGOUT("\nSuccess Allocation Addr is：%d\n",uRecBuffer[20]);
 								g_DeviceEsn.uEsnMark[uTempAddr] = 1;
 								memset(uAllocation.cDeviceEsn[uTempAddr],0,18);
+								gImport_Table_time = OSTimeGet();
 							}
 							else
 							{
@@ -825,11 +816,13 @@ int8_t SlaveDeviceAutoAllocation(void)
 					DEBUGOUT("\n[Empty Device Allocation Addr]：%d ,[ESN]：%-17s\n",uAllocation.cDeviceEsn[uNewSetAddr][17],uAllocation.cDeviceEsn[uNewSetAddr]);
 					memset(uRecBuffer,0,256);
 					iAssignResult[uNewSetAddr] = ComMasterRead(&g_sMaster,0xD5,DISCOVERY_SET_ADDR,0,0,uRecBuffer,(uint8_t *)uAllocation.cDeviceEsn[uNewSetAddr]);
+					gImport_Table_time = 0;
 					if((iAssignResult[uNewSetAddr] >0 ) && (uRecBuffer[1] == DISCOVERY_SET_ADDR) && (uRecBuffer[20] == uNewSetAddr) && (uRecBuffer[2] == 0x12))
 					{
 						g_DeviceEsn.uEsnMark[uNewSetAddr] = 1;
 						memset(uAllocation.cDeviceEsn[uNewSetAddr],0,18);
 						DEBUGOUT("\nSuccess Allocation Addr is：%d \n",uRecBuffer[20]);
+						gImport_Table_time = OSTimeGet();
 					}
 					else if(iAssignResult[uNewSetAddr]<0)
 					{
@@ -1065,6 +1058,7 @@ static uint8_t SouthRecDeal(void)
                 }
                 if(uIecAddr>(g_DeviceSouth.yx_sum-1))    // 遥信数据下标超过遥信总数
                 {
+                    DEBUGOUT("uIecAddr=%d yx_sum=%d",uIecAddr,g_DeviceSouth.yx_sum);
                     break;
                 }
                 if(uYxTemp != IEC104_DATA_YX[uIecAddr])
@@ -1119,7 +1113,18 @@ static uint8_t SouthRecDeal(void)
 
                     i += 4;
                 }
-
+                if(((g_pRegPoint[g_DeviceSouth.device_inf[uRelAddr].rel_num][point].reg_type.type.data == T_UINT32) && (0xFFFFFFFF == uYcU.u)) ||
+						((g_pRegPoint[g_DeviceSouth.device_inf[uRelAddr].rel_num][point].reg_type.type.data == T_UINT16) && (0xFFFF == uYcU.u16)))
+				{
+                	if((0x01&SouthSwich)&0x01)
+					{
+                		printf("ModbusAddr:0x%X Nothing 0xFFFFFFFF!!!\r\n",g_pRegPoint[g_DeviceSouth.device_inf[uRelAddr].rel_num][point].reg_addr);
+					}
+					uYcU.u = 0xFFFFFFFF;
+                	uIecAddr++;
+                	point++;
+					continue;
+				}
                 //--------------数据类型转换-------------------------
                 switch(g_pRegPoint[uRelNum][point].reg_type.type.data)
                 {
@@ -1165,22 +1170,13 @@ static uint8_t SouthRecDeal(void)
                     DEBUGOUT("uIecAddr=%d yc_sum=%d",uIecAddr,g_DeviceSouth.yc_sum);
                     break;
                 }
-				if(DataFlash_Read((DATAFLASH_DT1000_YCDATA + uIecAddr*4),(uint8_t*)IEC104_DATA_YC,4))
-				{
-					if(IEC104_DATA_YC[0] != uYcU.u)
-					{
-						IEC104_DATA_YC[0] = uYcU.u;			//yc_temp.f;
-						DataFlash_Write((DATAFLASH_DT1000_YCDATA + uIecAddr*4),(uint8_t*)IEC104_DATA_YC,4);
+                if(IEC104_DATA_YC[uIecAddr] != uYcU.u)//
+                {
+                    IEC104_DATA_YC[uIecAddr] = uYcU.u;//yc_temp.f;//
 
-						YcReport(g_pRegPoint[uRelNum][point].reg_type.type.data,uIecAddr,uYcU.u,1); // 突发遥测数据
-					}
-				}
-//                if(IEC104_DATA_YC[uIecAddr] != uYcU.u)//
-//                {
-//                    IEC104_DATA_YC[uIecAddr] = uYcU.u;//yc_temp.f;//
-//
-//                    YcReport(g_pRegPoint[uRelNum][point].reg_type.type.data,uIecAddr,uYcU.u,1); // 突发遥测数据
-//                }
+                    YcReport(g_pRegPoint[uRelNum][point].reg_type.type.data,uIecAddr,uYcU.u,1); // 突发遥测数据
+                }
+
                 uIecAddr++;
                 point++;
             }
@@ -1378,9 +1374,11 @@ int8_t SouthInquire(void)
 
             sCom.uRegCount = 0;  // 寄存器数量初始化为0；
 
+
             for(; sSouth.uPointCount < uMessPointSum; sSouth.uPointCount++)
             {
                 sSouth.uType = g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_type.type.mess;
+
                 if(TYPE_YX == sSouth.uType)//YX:0x02  YC:0x01  YK:0x04  SD:0x05   DD:0x03
                 {
                     sCom.uRegAddr = g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_addr;  // 寄存器地址
@@ -1445,7 +1443,7 @@ int8_t SouthInquire(void)
                    && (g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_count <= 2)  // 信息点长度不大于2
                    )
                 {
-                    if((sCom.uRegCount + g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_count) <= 25)
+                    if((sCom.uRegCount + g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_count) <= 125)
                     {
                         sCom.uRegCount += g_pRegPoint[uRelativePointNum][sSouth.uPointCount].reg_count;
 
@@ -1489,6 +1487,7 @@ int8_t SouthInquire(void)
             uNextDev = 1;
         }
 
+//        printf("uRegCount:%d!!!\r\n",sCom.uRegCount);
         if(sCom.uRegCount > 0)
         {
             sSouth.uRegAddr  = sCom.uRegAddr;       // 寄存器地址
@@ -1762,7 +1761,7 @@ int8_t SouthInquireAlarm(void)
                     && (g_pRegPoint[uRelativePointNum][sAlarmSouth.uPointCount].reg_count<=2)  // 信息点长度不大于2
                    )
                 {
-                    if((sCom.uRegCount + g_pRegPoint[uRelativePointNum][sAlarmSouth.uPointCount].reg_count) <= 25)
+                    if((sCom.uRegCount + g_pRegPoint[uRelativePointNum][sAlarmSouth.uPointCount].reg_count) <= 125)
                     {
                         sCom.uRegCount += g_pRegPoint[uRelativePointNum][sAlarmSouth.uPointCount].reg_count;
 
@@ -2331,7 +2330,7 @@ void TaskSouthInquire(void *p)
 	uint16_t uFrameCount = 0;
 	uint16_t uRecFrame;  				//从平台接收确认帧
     uint8_t TimeCount=0;
-    uint16_t SaveYCCount = 0,TestCount = 0;
+
     pUartLock = OSMutexCreate(4,&err);	// 锁初始化
 
     // 主站结构体初始化
@@ -2339,7 +2338,7 @@ void TaskSouthInquire(void *p)
     g_sMaster.iComFd = uart3;			// 串口文件号
     g_sMaster.uRecLostMax = 3;			// 最大丢帧次数，超过认为断连              ----->>>设定最大运行的丢帧次数，超过后认为断连
     g_sMaster.uRecCrcMax = 3;			// 最大CRC错误次数，超过认为断连           ----->>>设定最大运行的CRC校验次数，超过后认为断连
-    g_sMaster.uFailTimeOut = 3000;		// 丢帧超时，超过后，再次发送数据          ----->>>设定丢帧后再次发送的间隔时间，以1ms为计时单位，，原500
+    g_sMaster.uFailTimeOut = 500;		// 丢帧超时，超过后，再次发送数据          ----->>>设定丢帧后再次发送的间隔时间，以1ms为计时单位，原500
     g_sMaster.u1BTimeOut = 6000;		//查询1B的时候接收延时时间
     g_sMaster.uSuccessDelay = 200;		// 一帧成功，延时，延时后查询下一帧        ----->>>设定一帧查询成功后查询下一帧的间隔时间
     g_sMaster.sSuccessTime = 0;			// %内部%一帧查询成功时的时间记录
@@ -2493,6 +2492,7 @@ void TaskSouthInquire(void *p)
             {
                 sSouth.uBaudRate = SetBaudRate(sSouth.uBaudRate,BAUDRATE_9600);// 波特率切换到9600，用于搜索南向设备
 				uSouthStep = SOUTH_POLL;
+				DEBUGOUT("South Poll!!!\r\n",uRoundEnd);
                 msleep(100);
             }
             else if(SOUTH_EMPTY == uRoundEnd)
@@ -2510,6 +2510,7 @@ void TaskSouthInquire(void *p)
             {
 				uDiscoryStartTime = g_uTimeNow;
 				uSouthStep = SOUTH_POLL;
+				DEBUGOUT("South Poll!!!\r\n",uRoundEnd);
             }
             else if(SEARCH_END_IMPORT == uRoundEnd) // 一个循搜索询结束，需要导表
             {
@@ -2564,39 +2565,16 @@ void TaskSouthInquire(void *p)
 					{
 						//OSMutexPend(pRecordLock,0,&err);//请求信号量
 						uSaveSouthLog(sDateTime,SOUTH_DATA_LOG,NULL,20,0);
+						DEBUGOUT("YCSum = %d   YXSum = %d !!!\r\n",g_DeviceSouth.yc_sum,g_DeviceSouth.yx_sum);
 						//规避方案，问题单939，遥测数为0则重读eep，遥测空间为空则重启
 						if(!g_DeviceSouth.yc_sum)
 						{
 							EepReadData(EEP_LOGGER_DEVICE_INF_HEAD,(uint8_t *)&g_DeviceSouth,sizeof(g_DeviceSouth),&g_DeviceSouth.CRC);// 设备信息和点表信息读取
 						}
-						if(NULL == IEC104_DATA_YC)
-						{
-							Reboot();
-						}
-						DEBUGOUT("YCSum = %d   YXSum = %d !!!\r\n",g_DeviceSouth.yc_sum,g_DeviceSouth.yx_sum);
-						for(SaveYCCount = 0;SaveYCCount < 3800;)
-						{
-							if(!g_DeviceSouth.yc_sum)
-								break;
-							SaveYCCount += 512;
-							if(SaveYCCount > g_DeviceSouth.yc_sum)
-							{
-								TestCount = DataFlash_Read((DATAFLASH_DT1000_YCDATA + (SaveYCCount - 512)*4),(uint8_t*)IEC104_DATA_YC,(g_DeviceSouth.yc_sum - (SaveYCCount -512))*4);
-								printf("Read YC information Bty:%d!!!",TestCount);
-								RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,(g_DeviceSouth.yc_sum - (SaveYCCount -512)));// 保存数据
-								break;
-							}
-							else
-							{
-								TestCount = DataFlash_Read((DATAFLASH_DT1000_YCDATA + (SaveYCCount - 512)*4),(uint8_t*)IEC104_DATA_YC,2048);
-								printf("Read YC information Bty:%d!!!",TestCount);
-								RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,512);// 保存数据
-							}
-//							RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,g_DeviceSouth.yc_sum);// 保存数据
-						}
-						printf("SouthRecDeal end!!!\r\n");
 
-						//OSMutexPost(pRecordLock);   //释放信号量
+						if(NULL == IEC104_DATA_YC)
+							DEBUGOUT("Application IEC104_DATA_YC Space NULL!!!\r\n");
+						RecordHistory(IEC104_DATA_YX,(uint8_t *)IEC104_DATA_YC,g_DeviceSouth.yx_sum,g_DeviceSouth.yc_sum);// 保存数据
 					}
 				}
 				else
@@ -2613,8 +2591,8 @@ void TaskSouthInquire(void *p)
 				uSouthStep = SOUTH_DISCORY;
 				DEBUGOUT("South Discory!!!\r\n");
 			}
-			
             break;
+
         case SOUTH_TIME:
             if(RUNNING_WORK_READ == g_LoggerRun.run_status)
             {
@@ -2628,6 +2606,7 @@ void TaskSouthInquire(void *p)
                 msleep(200);
             }
             break;
+
         default:
             uSouthStep = SOUTH_POLL;
             break;
@@ -2888,7 +2867,7 @@ uint8_t SouthWriteSD(void)
     {
     	uIecSd = IEC104_DATA_SD[2*k+1];
 		uValue = IEC104_DATA_SD[(k+1)*2];
-//		DEBUGOUT("uValue:%d uIecSd：%X k = %d\r\n",uIecSd,uValue,k);
+		DEBUGOUT("uValue:%d uIecSd：%X k = %d\r\n",uIecSd,uValue,k);
     	SouthIecSd(uIecSd,uValue,k+1,uSdSum);
     	msleep(5);
     	IEC104_DATA_SD[2*k+1] = 0;
@@ -2918,7 +2897,7 @@ uint8_t SouthReadSD(void)
     uint8_t  uRelDevAddr = 0;   	// 南向设备相对地址
     uint8_t  uRelNum,sRegist_Count = 0;       	// 设备相对点表号
     uint8_t  uSdPoint;      	// 设备的第几个设点点
-	uint8_t  uIntervalPoint = 2;
+	uint8_t  uIntervalPoint = 2,South_SendCount = 0;
 	U32_F_Char_Convert ctemp;
 	uint32_t uValue_Temp = 0;       		// 寄存器值
 	DEBUGOUT("YT ACQUIRY TASK!!! \r\n");
@@ -2931,8 +2910,8 @@ uint8_t SouthReadSD(void)
         return 0;
     }
 
-	uValue = IEC104_DATA_SD[0];				//查询的遥调点总数
-	uIecSd = IEC104_DATA_SD[1];	//查询的104地址
+	uValue = IEC104_DATA_SD[0];			//查询的遥调点总数
+	uIecSd = IEC104_DATA_SD[1];			//查询的104地址
 
 //	DEBUGOUT("uIecSd = 0x%d  uValue = %d!!!\r\n",uIecSd,uValue);
 	if(uIecSd < 0x6201)
@@ -3007,41 +2986,53 @@ uint8_t SouthReadSD(void)
 		sRegist_Count += (((IEC104_DATA_SD[i-1])>>16)+1);
 		if((((IEC104_DATA_SD[i])<<16)>>16) != ((((IEC104_DATA_SD[i-1])<<16)>>16) + (((IEC104_DATA_SD[i-1])>>16)+1)))
 		{
-//			printf("addr = %d\r\n",(i - uValue));
+//			printf("addr:%d  uValue:%d  IEC104_DATA_SD:0x%X\r\n",(i - uValue),sRegist_Count,(IEC104_DATA_SD[i - uValue]));
 			memset(uRecBuffer,0,256);
-			if(ComMasterRead(&g_sMaster,g_DeviceSouth.device_inf[uRelDevAddr].addr,03,IEC104_DATA_SD[i - uValue],sRegist_Count,uRecBuffer,NULL) > 0)
+			for(South_SendCount = 0;South_SendCount < 2;South_SendCount++)
 			{
-				for(j = (i - uValue);j < i;j++)
+				if(ComMasterRead(&g_sMaster,g_DeviceSouth.device_inf[uRelDevAddr].addr,03,IEC104_DATA_SD[i - uValue],sRegist_Count,uRecBuffer,NULL) > 0)
 				{
-					uint8_t k = 0;
-					if(0 == ((IEC104_DATA_SD[j])>>16))
+					break;
+				}
+				else
+				{
+					if(South_SendCount == 1)
+						memset(IEC104_DATA_SD,0,sizeof(IEC104_DATA_SD));
+					return 0;
+				}
+			}
+
+			for(j = (i - uValue);j < i;j++)
+			{
+				uint8_t k = 0;
+				if(0 == ((IEC104_DATA_SD[j])>>16))
+				{
+//					DEBUGOUT("\r\n寄存器地址：%d  ",((IEC104_DATA_SD[j])<<16)>>16);
+					for(k = 0;k < 2;k++)
 					{
-	//					DEBUGOUT("\r\n寄存器地址：%d  ",((IEC104_DATA_SD[j])<<16)>>16);
-						for(k = 0;k < 2;k++)
-						{
-							ctemp.c[k] = uRecBuffer[uIntervalPoint + (2-k)];
-							IEC104_DATA_SD[j] = ctemp.u16;
-						}
-						uIntervalPoint += 2;
-	//					DEBUGOUT("数据长度1 - 数据为：%X\r\n",IEC104_DATA_SD[j]);
+						ctemp.c[k] = uRecBuffer[uIntervalPoint + (2-k)];
+						IEC104_DATA_SD[j] = ctemp.u16;
 					}
-					else if(1 == ((IEC104_DATA_SD[j])>>16))
+					uIntervalPoint += 2;
+//					DEBUGOUT("数据长度1 - 数据为：%X\r\n",IEC104_DATA_SD[j]);
+				}
+				else if(1 == ((IEC104_DATA_SD[j])>>16))
+				{
+//					DEBUGOUT("\r\n寄存器地址：%d  ",((IEC104_DATA_SD[j])<<16)>>16);
+					for(k = 0;k < 4;k++)
 					{
-	//					DEBUGOUT("\r\n寄存器地址：%d  ",((IEC104_DATA_SD[j])<<16)>>16);
-						for(k = 0;k < 4;k++)
-						{
-							ctemp.c[k] = uRecBuffer[uIntervalPoint + (4-k)];
-							IEC104_DATA_SD[j] = ctemp.u;
-						}
-						uIntervalPoint += 4;
-	//					DEBUGOUT("数据长度2 - 数据为：%X\r\n",IEC104_DATA_SD[j]);
+						ctemp.c[k] = uRecBuffer[uIntervalPoint + (4-k)];
+						IEC104_DATA_SD[j] = ctemp.u;
 					}
+					uIntervalPoint += 4;
+//					DEBUGOUT("数据长度2 - 数据为：%X\r\n",IEC104_DATA_SD[j]);
 				}
 			}
 			uValue = 0;
 			sRegist_Count = 0;
 			uIntervalPoint = 2;
 		}
+
 	}
     return 0;
 }
@@ -3603,7 +3594,6 @@ void ResetIecData(uint8_t uRelAddr)
     uint16_t yc_sum=0;   // 遥测点数统计
     uint16_t yx_sum=0;   // 遥信点数统计
     uint8_t  rel_num;
-    uint16_t YCCount=0;   // 遥测点数统计
 
 
     rel_num = g_DeviceSouth.device_inf[uRelAddr].rel_num;  // 相对点表号
@@ -3638,16 +3628,10 @@ void ResetIecData(uint8_t uRelAddr)
         iec_addr = g_DeviceSouth.device_inf[uRelAddr].yc_start_addr - 0x4001; // 找出遥测起始地址
         count  = iec_addr;           // 地址偏移，得出第一个点对应的iec104数组表下标
         yc_sum = yc_sum + iec_addr;  // 加上地址偏移，得出最后一个点对应的iec104数组表下标
-//        for(; count<yc_sum && NULL!=IEC104_DATA_YC; count++)
-//        {
-//            IEC104_DATA_YC[count] = 0xffffffff;
-//        }
-        for(YCCount=0;YCCount<512 && NULL!=IEC104_DATA_YC; YCCount++)
-		{
-			IEC104_DATA_YC[YCCount] = 0xffffffff;
-		}
-
-		DataFlash_Write((DATAFLASH_DT1000_YCDATA  + iec_addr*4),(uint8_t*)IEC104_DATA_YC,(yc_sum - iec_addr)*4);
+        for(; count<yc_sum && NULL!=IEC104_DATA_YC; count++)
+        {
+            IEC104_DATA_YC[count] = 0xffffffff;
+        }
     }
 }
 /******************************************************************************

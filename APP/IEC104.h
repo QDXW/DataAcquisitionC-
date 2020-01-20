@@ -201,6 +201,8 @@ typedef struct
 //========================================================================
 extern IEC104_COUNT_T g_sIecPointCount[];  // 点表信息点统计
 //========================================================================
+//extern uint8_t  IEC104_DATA_YX[];   // IEC104数据-遥信指针，动态申请空间
+//extern float    IEC104_DATA_YC[];   // IEC104数据-遥测指针，动态申请空间
 
 extern uint8_t  *IEC104_DATA_YX;   // IEC104数据-遥信指针，动态申请空间
 extern uint32_t *IEC104_DATA_YC;   // IEC104数据-遥测指针，动态申请空间

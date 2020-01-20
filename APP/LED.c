@@ -305,6 +305,7 @@ void LedShow(const LED_STATUS_T sLed)
 OS_STK TaskLedCtrlStk[TaskLedCtrlStkSize];	      // 定义任务堆栈大小
 void TaskLedCtrl(void *p)
 {
+	uint8_t i =0;
     p = p;
 
     LedInit();
@@ -326,6 +327,8 @@ void TaskLedCtrl(void *p)
 		/***********************保证导表流程完整*******************************/
 		if(gImport_Table_time)
 		{
+//			printf("gImport_Table_ResetTime = %d",(OSTimeGet() - gImport_Table_time));
+
 			if(abs(OSTimeGet() - gImport_Table_time) > 6000)
 			{
 				printf("Import Table Failed!!!\r\n");
